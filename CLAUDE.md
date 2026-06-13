@@ -4,30 +4,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SuperRTL is a Python MCP/CLI client that wraps Verilog EDA toolchains (Icarus Verilog, Yosys, Verilator) into standard MCP interfaces. It supports two modes:
+SuperRTL is a Python MCP/CLI client that wraps Verilog EDA toolchains (Icarus Verilog, Yosys, Verilator) into standard MCP interfaces. It supports:
 - **MCP Server mode**: Called by Claude Desktop, Cursor, Hermes Agent
 - **CLI mode**: Standalone command-line usage
+- **Auto-install**: EDA tools are automatically downloaded on first run
 
-## Common Commands
+## Quick Start
 
 ```bash
-# Install in development mode
-pip install -e .
+# Install from PyPI
+pip install superrtl
 
-# Install with dev dependencies
-pip install -e ".[dev]"
+# Or using uvx (recommended)
+uvx superrtl
+
+# Or using pipx
+pipx install superrtl
 
 # Install EDA tools (first time)
 superrtl setup
 
+# Check tools status
+superrtl check-tools
+```
+
+## Common Commands
+
+```bash
+# Development setup
+pip install -e ".[dev]"
+
 # Run tests
-pytest
+pytest tests/ -v
 
 # Run a single test file
-pytest tests/test_compile.py
+pytest tests/test_compile.py -v
 
 # Run with coverage
-pytest --cov=superrtl
+pytest tests/ --cov=superrtl --cov-report=term-missing
 
 # Lint
 ruff check src/ tests/
@@ -35,24 +49,27 @@ ruff check src/ tests/
 # Format
 ruff format src/ tests/
 
-# Check EDA tools installation
-superrtl check-tools
+# Build package
+python -m build
 
-# Start MCP Server
-superrtl mcp
+# Version management
+python scripts/bump_version.py patch  # 0.2.0 -> 0.2.1
+python scripts/bump_version.py minor  # 0.2.0 -> 0.3.0
+python scripts/bump_version.py major  # 0.2.0 -> 1.0.0
 
-# CLI usage examples
+# CLI usage
 superrtl compile design.v
 superrtl simulate design.v testbench.v
 superrtl lint design.v
 superrtl synthesize design.v --top counter
+superrtl testbench design.v
+superrtl waveform simulation.vcd
+superrtl mcp  # Start MCP Server
 ```
 
 ## Architecture
 
 ### Dual Interface Pattern
-
-The codebase follows a dual interface pattern where the same core logic serves both MCP and CLI:
 
 ```
 CLI (cli.py) ──┐
@@ -60,36 +77,34 @@ CLI (cli.py) ──┐
 MCP (server.py)─┘
 ```
 
-- **`src/superrtl/cli.py`**: Click-based CLI entry point (`superrtl` command)
-- **`src/superrtl/server.py`**: MCP Server using `mcp` library, registers tools and resources
-
 ### Core Layers
 
-1. **Tools Layer** (`src/superrtl/tools/`): Each tool wraps an EDA tool via subprocess
+1. **Tools Layer** (`src/superrtl/tools/`): Wraps EDA tools via subprocess
    - `compile.py`: Icarus Verilog compilation
-   - `simulate.py`: Icarus Verilog simulation (calls compile first)
+   - `simulate.py`: Icarus Verilog simulation
    - `lint.py`: Verilator lint checking
    - `synthesize.py`: Yosys synthesis
-   - `testbench.py`: Auto-generates testbench from Verilog code
+   - `testbench.py`: Auto-generates testbench
    - `waveform.py`: VCD waveform analysis
 
 2. **Resources Layer** (`src/superrtl/resources/`): MCP Resources
-   - `skills.py`: Design pattern documentation (from `shared/skills/`)
-   - `templates.py`: Code templates (from `shared/templates/`)
+   - `skills.py`: Design pattern documentation
+   - `templates.py`: Code templates
 
-3. **Utils** (`src/superrtl/utils/verilog.py`): Verilog code analysis helpers (`extract_top_module`, `extract_ports`)
+3. **Runtime Layer** (`src/superrtl/runtime.py`): Manages tool paths and environment
 
-4. **Shared Resources** (`shared/`): Design skills and code templates
-   - `skills/`: Markdown files with Verilog design patterns
-   - `templates/`: Verilog code templates
+4. **Setup Layer** (`src/superrtl/setup.py`): Downloads and installs EDA tools
+
+5. **Utils** (`src/superrtl/utils/`): Helper functions
+   - `run_command()`: Cross-platform subprocess wrapper
+   - `verilog.py`: Verilog code analysis
 
 ### Key Patterns
 
-- All EDA tool invocations use `subprocess.run()` with `tempfile.TemporaryDirectory()` for isolation
-- Tool functions are `async` but use synchronous subprocess calls internally
+- All EDA tool invocations use `run_command()` with automatic PATH management
+- Tools are auto-detected from `.superrtl/oss-cad-suite/bin/` or system PATH
 - Results are always returned as dicts with `success: bool` field
 - MCP tools return `list[TextContent]` wrapping JSON-serialized results
-- CLI commands use `asyncio.run()` to call the async tool functions
 
 ### Dependencies
 
@@ -104,24 +119,41 @@ MCP (server.py)─┘
 
 ## Testing
 
-Tests use `pytest` with `pytest-asyncio`. Async tests require the `@pytest.mark.asyncio` decorator (though `asyncio_mode = "auto"` is configured). Tests that invoke EDA tools will gracefully handle missing tools by checking `result["success"]`.
+Tests use `pytest` with `pytest-asyncio`. Async tests use `asyncio_mode = "auto"`. Tests that invoke EDA tools gracefully handle missing tools by checking `result["success"]`.
+
+Current test coverage: 104 tests, ~83% coverage.
 
 ## Build System
 
 Uses Hatch (`hatchling` build backend). Package source is in `src/superrtl/`.
 
 ```bash
-# Build wheel
-hatch build
+# Build
+python -m build
 
-# Publish (when ready)
-hatch publish
+# Publish to PyPI (via GitHub Actions)
+git tag v0.3.0
+git push --tags
 ```
+
+## Distribution
+
+- **PyPI**: `pip install superrtl`
+- **GitHub**: https://github.com/egg-rolls/SuperRTL
+- **Auto-install**: `superrtl setup` downloads OSS CAD Suite
 
 ## Project Conventions
 
-- Python 3.10+ required (uses `list[str]` syntax, not `List[str]`)
+- Python 3.10+ required
 - Line length: 100 (ruff config)
 - Ruff lint rules: E, F, I, N, W, UP
-- Chinese (中文) is used for user-facing messages and documentation
-- All tool functions return dict with standardized structure (`success`, `duration`, `errors`, etc.)
+- Chinese (中文) is used for user-facing messages
+- All tool functions return dict with standardized structure
+- Commit messages follow conventional commits: `feat:`, `fix:`, `docs:`, etc.
+
+## Collaboration
+
+- Main repository: https://github.com/egg-rolls/SuperRTL
+- Team members fork and submit PRs
+- See `CONTRIBUTING.md` for guidelines
+- GitHub Actions CI/CD for testing and publishing
