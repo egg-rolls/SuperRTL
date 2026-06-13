@@ -103,11 +103,15 @@ class TestCompileVerilog:
 
         # 应该有这些字段
         assert "success" in result
-        assert "top_module" in result
 
         if result.get("success"):
+            # 成功时应该有这些字段
+            assert "top_module" in result
             assert "duration" in result
             assert "message" in result
+        else:
+            # 失败时应该有错误信息
+            assert "error" in result or "errors" in result
 
     @pytest.mark.asyncio
     async def test_compile_timeout_structure(self):
