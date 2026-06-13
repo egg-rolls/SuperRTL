@@ -5,11 +5,7 @@ Testbench 生成工具
 from ..utils import extract_ports, extract_top_module
 
 
-async def generate_testbench(
-    code: str,
-    style: str = "basic",
-    test_cases: int = 3
-) -> dict:
+async def generate_testbench(code: str, style: str = "basic", test_cases: int = 3) -> dict:
     """
     自动生成 Testbench
 
@@ -66,7 +62,7 @@ module {top_module}_tb;
 
     # 声明信号
     for port in other_ports:
-        width_str = f"[{port['width']-1}:0] " if port['width'] > 1 else ""
+        width_str = f"[{port['width'] - 1}:0] " if port["width"] > 1 else ""
         if port["direction"] == "input":
             tb_code += f"    reg {width_str}{port['name']};\n"
         else:
@@ -117,7 +113,7 @@ module {top_module}_tb;
     # 添加测试激励
     for i in range(test_cases):
         tb_code += f"""
-        // 测试用例 {i+1}
+        // 测试用例 {i + 1}
         #100;
 """
 

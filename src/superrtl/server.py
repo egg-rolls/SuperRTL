@@ -127,6 +127,7 @@ TOOLS = [
 
 # ============ 注册处理器 ============
 
+
 @app.list_tools()
 async def list_tools() -> list[types.Tool]:
     """列出所有可用的工具"""
@@ -138,38 +139,26 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     """处理工具调用"""
     try:
         if name == "compile_verilog":
-            result = await compile_verilog(
-                arguments["code"],
-                arguments.get("top_module", "")
-            )
+            result = await compile_verilog(arguments["code"], arguments.get("top_module", ""))
         elif name == "simulate_verilog":
             result = await simulate_verilog(
-                arguments["code"],
-                arguments["testbench"],
-                arguments.get("timeout", 30)
+                arguments["code"], arguments["testbench"], arguments.get("timeout", 30)
             )
         elif name == "lint_verilog":
-            result = await lint_verilog(
-                arguments["code"],
-                arguments.get("style", "default")
-            )
+            result = await lint_verilog(arguments["code"], arguments.get("style", "default"))
         elif name == "synthesize_verilog":
             result = await synthesize_verilog(
                 arguments["code"],
                 arguments.get("top_module", ""),
-                arguments.get("target", "generic")
+                arguments.get("target", "generic"),
             )
         elif name == "generate_testbench":
             result = await generate_testbench(
-                arguments["code"],
-                arguments.get("style", "basic"),
-                arguments.get("test_cases", 3)
+                arguments["code"], arguments.get("style", "basic"), arguments.get("test_cases", 3)
             )
         elif name == "analyze_waveform":
             result = await analyze_waveform(
-                arguments.get("vcd_file"),
-                arguments.get("vcd_content"),
-                arguments.get("signals")
+                arguments.get("vcd_file"), arguments.get("vcd_content"), arguments.get("signals")
             )
         else:
             result = {"success": False, "error": f"未知工具: {name}"}
@@ -177,13 +166,16 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
     except Exception as e:
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
-        )]
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps({"success": False, "error": str(e)}, ensure_ascii=False),
+            )
+        ]
 
 
 # ============ Resources 定义 ============
+
 
 @app.list_resources()
 async def list_resources() -> list[types.Resource]:
@@ -193,22 +185,26 @@ async def list_resources() -> list[types.Resource]:
     # Skills
     skills_data = json.loads(await list_skills())
     for skill in skills_data.get("skills", []):
-        resources.append(types.Resource(
-            uri=f"skills://{skill}",
-            name=f"Skill: {skill}",
-            description=f"Verilog 设计模式: {skill}",
-            mimeType="text/markdown",
-        ))
+        resources.append(
+            types.Resource(
+                uri=f"skills://{skill}",
+                name=f"Skill: {skill}",
+                description=f"Verilog 设计模式: {skill}",
+                mimeType="text/markdown",
+            )
+        )
 
     # Templates
     templates_data = json.loads(await list_templates())
     for template in templates_data.get("templates", []):
-        resources.append(types.Resource(
-            uri=f"templates://{template}",
-            name=f"Template: {template}",
-            description=f"Verilog 代码模板: {template}",
-            mimeType="text/plain",
-        ))
+        resources.append(
+            types.Resource(
+                uri=f"templates://{template}",
+                name=f"Template: {template}",
+                description=f"Verilog 代码模板: {template}",
+                mimeType="text/plain",
+            )
+        )
 
     return resources
 
@@ -230,6 +226,7 @@ async def read_resource(uri: str) -> str:
 
 
 # ============ 启动函数 ============
+
 
 async def run_stdio():
     """以 stdio 模式运行 (用于 MCP Host 连接)"""

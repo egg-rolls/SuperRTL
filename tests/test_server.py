@@ -51,9 +51,7 @@ class TestCallTool:
     @pytest.mark.asyncio
     async def test_compile_verilog(self):
         """测试编译工具调用"""
-        result = await call_tool("compile_verilog", {
-            "code": "module test(input clk); endmodule"
-        })
+        result = await call_tool("compile_verilog", {"code": "module test(input clk); endmodule"})
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -62,10 +60,13 @@ class TestCallTool:
     @pytest.mark.asyncio
     async def test_simulate_verilog(self):
         """测试仿真工具调用"""
-        result = await call_tool("simulate_verilog", {
-            "code": "module test(input clk); endmodule",
-            "testbench": "module tb; initial $finish; endmodule"
-        })
+        result = await call_tool(
+            "simulate_verilog",
+            {
+                "code": "module test(input clk); endmodule",
+                "testbench": "module tb; initial $finish; endmodule",
+            },
+        )
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -74,9 +75,7 @@ class TestCallTool:
     @pytest.mark.asyncio
     async def test_lint_verilog(self):
         """测试 lint 工具调用"""
-        result = await call_tool("lint_verilog", {
-            "code": "module test(input clk); endmodule"
-        })
+        result = await call_tool("lint_verilog", {"code": "module test(input clk); endmodule"})
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -85,9 +84,9 @@ class TestCallTool:
     @pytest.mark.asyncio
     async def test_synthesize_verilog(self):
         """测试综合工具调用"""
-        result = await call_tool("synthesize_verilog", {
-            "code": "module test(input clk); endmodule"
-        })
+        result = await call_tool(
+            "synthesize_verilog", {"code": "module test(input clk); endmodule"}
+        )
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -96,9 +95,10 @@ class TestCallTool:
     @pytest.mark.asyncio
     async def test_generate_testbench(self):
         """测试生成 testbench 工具调用"""
-        result = await call_tool("generate_testbench", {
-            "code": "module counter(input clk, output reg [3:0] count); endmodule"
-        })
+        result = await call_tool(
+            "generate_testbench",
+            {"code": "module counter(input clk, output reg [3:0] count); endmodule"},
+        )
 
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -109,9 +109,7 @@ class TestCallTool:
     async def test_analyze_waveform(self):
         """测试波形分析工具调用"""
         vcd = "$timescale 1ns $end\n$enddefinitions $end\n#0\n0!\n"
-        result = await call_tool("analyze_waveform", {
-            "vcd_content": vcd
-        })
+        result = await call_tool("analyze_waveform", {"vcd_content": vcd})
 
         assert len(result) == 1
         data = json.loads(result[0].text)

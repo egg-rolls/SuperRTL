@@ -42,18 +42,8 @@ def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
         # Windows 上使用 cmd.exe 包装以解决 DLL 依赖问题
         cmd_str = " ".join(str(c) for c in cmd)
         return subprocess.run(
-            ["cmd.exe", "/c", cmd_str],
-            capture_output=True,
-            text=True,
-            env=env,
-            **kwargs
+            ["cmd.exe", "/c", cmd_str], capture_output=True, text=True, env=env, **kwargs
         )
     else:
         # Linux/macOS 直接运行
-        return subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            env=env,
-            **kwargs
-        )
+        return subprocess.run(cmd, capture_output=True, text=True, env=env, **kwargs)

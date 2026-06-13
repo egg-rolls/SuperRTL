@@ -21,9 +21,7 @@ def iverilog_works():
             test_file.write_text("module test; endmodule")
             output_file = Path(tmpdir) / "test.vvp"
             result = subprocess.run(
-                ["iverilog", "-o", str(output_file), str(test_file)],
-                capture_output=True,
-                timeout=5
+                ["iverilog", "-o", str(output_file), str(test_file)], capture_output=True, timeout=5
             )
             return result.returncode == 0
     except Exception:
@@ -31,10 +29,7 @@ def iverilog_works():
 
 
 # 跳过标记
-requires_iverilog = pytest.mark.skipif(
-    not iverilog_works(),
-    reason="iverilog 不能正常工作"
-)
+requires_iverilog = pytest.mark.skipif(not iverilog_works(), reason="iverilog 不能正常工作")
 
 
 class TestCompileSimulateFlow:
@@ -279,10 +274,7 @@ class TestTestbenchGeneration:
         assert tb_result["success"] is True
 
         # 编译生成的 testbench
-        compile_result = await compile_verilog(
-            design,
-            top_module=tb_result["top_module"]
-        )
+        compile_result = await compile_verilog(design, top_module=tb_result["top_module"])
         assert compile_result["success"] is True
 
     @pytest.mark.asyncio

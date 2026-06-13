@@ -25,10 +25,7 @@ async def list_skills() -> str:
             skill_name = skill_file.stem.replace("verilog_", "")
             skills.append(skill_name)
 
-    return json.dumps({
-        "skills": skills,
-        "count": len(skills)
-    }, ensure_ascii=False)
+    return json.dumps({"skills": skills, "count": len(skills)}, ensure_ascii=False)
 
 
 async def get_skill(skill_name: str) -> str:
@@ -50,7 +47,6 @@ async def get_skill(skill_name: str) -> str:
         for f in SKILLS_DIR.glob("*.md"):
             available.append(f.stem.replace("verilog_", ""))
 
-    return json.dumps({
-        "error": f"Skill 未找到: {skill_name}",
-        "available": available
-    }, ensure_ascii=False)
+    return json.dumps(
+        {"error": f"Skill 未找到: {skill_name}", "available": available}, ensure_ascii=False
+    )

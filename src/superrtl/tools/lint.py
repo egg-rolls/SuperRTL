@@ -10,10 +10,7 @@ from pathlib import Path
 from ..utils import run_command
 
 
-async def lint_verilog(
-    code: str,
-    style: str = "default"
-) -> dict:
+async def lint_verilog(code: str, style: str = "default") -> dict:
     """
     使用 Verilator 进行 Lint 检查
 
@@ -64,7 +61,7 @@ async def lint_verilog(
                 "warnings": warnings,
                 "errors": errors,
                 "warning_count": len(warnings),
-                "error_count": len(errors)
+                "error_count": len(errors),
             }
 
     except FileNotFoundError:
@@ -74,15 +71,9 @@ async def lint_verilog(
                 "Verilator 未安装。"
                 "请运行: scoop install verilator (Windows)"
                 " 或 brew install verilator (macOS)"
-            )
+            ),
         }
     except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "error": "Lint 检查超时 (>30s)"
-        }
+        return {"success": False, "error": "Lint 检查超时 (>30s)"}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}

@@ -24,8 +24,7 @@ class TestErrorHandling:
     async def test_simulate_result_has_success_field(self):
         """测试仿真结果包含 success 字段"""
         result = await simulate_verilog(
-            "module test; endmodule",
-            "module tb; initial $finish; endmodule"
+            "module test; endmodule", "module tb; initial $finish; endmodule"
         )
         assert "success" in result
         assert isinstance(result["success"], bool)
@@ -57,8 +56,7 @@ class TestErrorHandling:
     async def test_simulate_error_contains_message(self):
         """测试仿真错误包含错误信息"""
         result = await simulate_verilog(
-            "module bad; invalid; endmodule",
-            "module tb; initial $finish; endmodule"
+            "module bad; invalid; endmodule", "module tb; initial $finish; endmodule"
         )
 
         if not result.get("success"):

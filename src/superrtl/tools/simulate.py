@@ -10,11 +10,7 @@ from pathlib import Path
 from ..utils import run_command
 
 
-async def simulate_verilog(
-    code: str,
-    testbench: str,
-    timeout: int = 30
-) -> dict:
+async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict:
     """
     运行 Verilog 仿真
 
@@ -42,13 +38,8 @@ async def simulate_verilog(
             # 编译
             output_file = tmpdir_path / "simulation.vvp"
             compile_result = run_command(
-                [
-                    "iverilog",
-                    "-o", str(output_file),
-                    str(design_file),
-                    str(tb_file)
-                ],
-                timeout=timeout
+                ["iverilog", "-o", str(output_file), str(design_file), str(tb_file)],
+                timeout=timeout,
             )
 
             if compile_result.returncode != 0:
@@ -56,15 +47,13 @@ async def simulate_verilog(
                     "success": False,
                     "stage": "compilation",
                     "errors": compile_result.stderr.splitlines(),
-                    "duration": time.perf_counter() - start_time
+                    "duration": time.perf_counter() - start_time,
                 }
 
             # 仿真
             vcd_file = tmpdir_path / "waveform.vcd"
             sim_result = run_command(
-                ["vvp", str(output_file)],
-                timeout=timeout,
-                cwd=str(tmpdir_path)
+                ["vvp", str(output_file)], timeout=timeout, cwd=str(tmpdir_path)
             )
 
             duration = time.perf_counter() - start_time
@@ -77,7 +66,7 @@ async def simulate_verilog(
                 "passed": passed,
                 "stage": "simulation",
                 "duration": round(duration, 3),
-                "output": sim_result.stdout
+                "output": sim_result.stdout,
             }
 
             # 如果有 VCD 文件，记录信息
@@ -98,16 +87,9 @@ async def simulate_verilog(
                 "Icarus Verilog 未安装。"
                 "请运行: scoop install iverilog (Windows)"
                 " 或 brew install icarus-verilog (macOS)"
-            )
+            ),
         }
     except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "stage": "simulation",
-            "error": f"仿真超时 (>{timeout}s)"
-        }
+        return {"success": False, "stage": "simulation", "error": f"仿真超时 (>{timeout}s)"}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}

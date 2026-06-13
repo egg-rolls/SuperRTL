@@ -72,10 +72,7 @@ class TestAnalyzeWaveform:
     @pytest.mark.asyncio
     async def test_filter_signals(self):
         """测试信号过滤"""
-        result = await analyze_waveform(
-            vcd_content=SAMPLE_VCD,
-            signals=["clk"]
-        )
+        result = await analyze_waveform(vcd_content=SAMPLE_VCD, signals=["clk"])
 
         assert "clk" in result["signals"]
         assert "count" not in result["signals"]
@@ -85,7 +82,7 @@ class TestAnalyzeWaveform:
         """测试部分信号名匹配"""
         result = await analyze_waveform(
             vcd_content=SAMPLE_VCD,
-            signals=["cl"]  # 部分匹配 "clk"
+            signals=["cl"],  # 部分匹配 "clk"
         )
 
         assert "clk" in result["signals"]

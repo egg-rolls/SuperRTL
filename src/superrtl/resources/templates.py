@@ -24,10 +24,7 @@ async def list_templates() -> str:
         for template_file in TEMPLATES_DIR.glob("*.v"):
             templates.append(template_file.stem)
 
-    return json.dumps({
-        "templates": templates,
-        "count": len(templates)
-    }, ensure_ascii=False)
+    return json.dumps({"templates": templates, "count": len(templates)}, ensure_ascii=False)
 
 
 async def get_template(template_name: str) -> str:
@@ -48,7 +45,6 @@ async def get_template(template_name: str) -> str:
         for f in TEMPLATES_DIR.glob("*.v"):
             available.append(f.stem)
 
-    return json.dumps({
-        "error": f"模板未找到: {template_name}",
-        "available": available
-    }, ensure_ascii=False)
+    return json.dumps(
+        {"error": f"模板未找到: {template_name}", "available": available}, ensure_ascii=False
+    )

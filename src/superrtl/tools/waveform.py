@@ -6,9 +6,7 @@ import re
 
 
 async def analyze_waveform(
-    vcd_file: str = None,
-    vcd_content: str = None,
-    signals: list[str] = None
+    vcd_file: str = None, vcd_content: str = None, signals: list[str] = None
 ) -> dict:
     """
     分析 VCD 波形文件
@@ -39,16 +37,14 @@ async def analyze_waveform(
     # 如果指定了信号，只返回相关信号
     if signals:
         parsed["signals"] = {
-            k: v for k, v in parsed["signals"].items()
+            k: v
+            for k, v in parsed["signals"].items()
             if k in signals or any(s in k for s in signals)
         }
 
     # 生成 ASCII 波形图
     if parsed["signals"]:
-        parsed["ascii_waveform"] = _generate_ascii_waveform(
-            parsed["signals"],
-            max_cycles=20
-        )
+        parsed["ascii_waveform"] = _generate_ascii_waveform(parsed["signals"], max_cycles=20)
 
     return parsed
 
@@ -59,7 +55,7 @@ def _parse_vcd(content: str) -> dict:
         "success": True,
         "timescale": "1ns",
         "signals": {},
-        "time_range": {"start": 0, "end": 0}
+        "time_range": {"start": 0, "end": 0},
     }
 
     current_time = 0
@@ -82,10 +78,7 @@ def _parse_vcd(content: str) -> dict:
                 sig_id = match.group(2)
                 sig_name = match.group(3)
                 signal_map[sig_id] = sig_name
-                result["signals"][sig_name] = {
-                    "width": width,
-                    "values": []
-                }
+                result["signals"][sig_name] = {"width": width, "values": []}
 
         # 解析时间
         elif line.startswith("#"):
@@ -99,10 +92,9 @@ def _parse_vcd(content: str) -> dict:
             if sig_id in signal_map:
                 sig_name = signal_map[sig_id]
                 if sig_name in result["signals"]:
-                    result["signals"][sig_name]["values"].append({
-                        "time": current_time,
-                        "value": value
-                    })
+                    result["signals"][sig_name]["values"].append(
+                        {"time": current_time, "value": value}
+                    )
 
         # 多位信号
         elif line.startswith("b"):
@@ -113,10 +105,9 @@ def _parse_vcd(content: str) -> dict:
                 if sig_id in signal_map:
                     sig_name = signal_map[sig_id]
                     if sig_name in result["signals"]:
-                        result["signals"][sig_name]["values"].append({
-                            "time": current_time,
-                            "value": value
-                        })
+                        result["signals"][sig_name]["values"].append(
+                            {"time": current_time, "value": value}
+                        )
 
     return result
 

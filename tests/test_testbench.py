@@ -33,7 +33,7 @@ class TestGenerateTestbench:
         assert "reg rst_n" in tb
         assert "counter uut" in tb
         assert "$dumpfile" in tb
-        assert "$display(\"PASS\")" in tb
+        assert '$display("PASS")' in tb
 
     @pytest.mark.asyncio
     async def test_comprehensive_style(self):

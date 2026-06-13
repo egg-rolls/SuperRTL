@@ -20,10 +20,8 @@ def extract_ports(code: str) -> list[dict]:
 
     for match in re.finditer(pattern, code):
         direction, width, name = match.groups()
-        ports.append({
-            "direction": direction,
-            "width": int(width) + 1 if width else 1,
-            "name": name
-        })
+        ports.append(
+            {"direction": direction, "width": int(width) + 1 if width else 1, "name": name}
+        )
 
     return ports

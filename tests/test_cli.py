@@ -2,7 +2,6 @@
 CLI 命令测试
 """
 
-
 import pytest
 from click.testing import CliRunner
 
@@ -79,6 +78,7 @@ class TestMainCommand:
     def test_main_version(self, runner):
         """测试版本信息"""
         from superrtl import __version__
+
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
         assert __version__ in result.output
@@ -121,21 +121,17 @@ class TestSimulateCommand:
 
     def test_simulate_valid_files(self, runner, sample_verilog_file, sample_testbench_file):
         """测试仿真有效文件"""
-        result = runner.invoke(main, [
-            "simulate",
-            str(sample_verilog_file),
-            str(sample_testbench_file)
-        ])
+        result = runner.invoke(
+            main, ["simulate", str(sample_verilog_file), str(sample_testbench_file)]
+        )
         assert result.exit_code == 0
 
     def test_simulate_with_timeout(self, runner, sample_verilog_file, sample_testbench_file):
         """测试带超时的仿真"""
-        result = runner.invoke(main, [
-            "simulate",
-            str(sample_verilog_file),
-            str(sample_testbench_file),
-            "--timeout", "10"
-        ])
+        result = runner.invoke(
+            main,
+            ["simulate", str(sample_verilog_file), str(sample_testbench_file), "--timeout", "10"],
+        )
         assert result.exit_code == 0
 
     def test_simulate_nonexistent_file(self, runner):
@@ -185,11 +181,7 @@ class TestSynthesizeCommand:
 
     def test_synthesize_with_target(self, runner, sample_verilog_file):
         """测试带目标的综合"""
-        result = runner.invoke(main, [
-            "synthesize",
-            str(sample_verilog_file),
-            "--target", "xilinx"
-        ])
+        result = runner.invoke(main, ["synthesize", str(sample_verilog_file), "--target", "xilinx"])
         assert result.exit_code == 0
 
     def test_synthesize_nonexistent_file(self, runner):
@@ -215,11 +207,9 @@ class TestTestbenchCommand:
     def test_testbench_with_output(self, runner, sample_verilog_file, tmp_path):
         """测试输出到文件"""
         output_file = tmp_path / "output_tb.v"
-        result = runner.invoke(main, [
-            "testbench",
-            str(sample_verilog_file),
-            "--output", str(output_file)
-        ])
+        result = runner.invoke(
+            main, ["testbench", str(sample_verilog_file), "--output", str(output_file)]
+        )
         assert result.exit_code == 0
         assert output_file.exists()
 

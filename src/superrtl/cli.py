@@ -67,8 +67,7 @@ def simulate(design: str, testbench: str, timeout: int):
 @main.command()
 @click.argument("file", type=click.Path(exists=True))
 @click.option(
-    "--style", "-s", default="default",
-    type=click.Choice(["default", "strict", "relaxed"])
+    "--style", "-s", default="default", type=click.Choice(["default", "strict", "relaxed"])
 )
 def lint(file: str, style: str):
     """Lint 检查"""
@@ -164,6 +163,7 @@ def waveform(file: str, signals: tuple):
 def check_tools_cmd():
     """检查 EDA 工具安装状态"""
     from .setup import check_tools
+
     check_tools()
 
 
@@ -172,6 +172,7 @@ def check_tools_cmd():
 def setup(force: bool):
     """安装 EDA 工具（首次运行时自动下载）"""
     from .setup import install_tools
+
     install_tools(force=force)
 
 

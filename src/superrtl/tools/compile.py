@@ -10,10 +10,7 @@ from pathlib import Path
 from ..utils import extract_top_module, run_command
 
 
-async def compile_verilog(
-    code: str,
-    top_module: str = ""
-) -> dict:
+async def compile_verilog(code: str, top_module: str = "") -> dict:
     """
     编译 Verilog 代码
 
@@ -36,13 +33,7 @@ async def compile_verilog(
             # 编译
             output_file = Path(tmpdir) / "output.vvp"
             result = run_command(
-                [
-                    "iverilog",
-                    "-o", str(output_file),
-                    "-s", top_module,
-                    str(design_file)
-                ],
-                timeout=30
+                ["iverilog", "-o", str(output_file), "-s", top_module, str(design_file)], timeout=30
             )
 
             duration = time.perf_counter() - start_time
@@ -52,7 +43,7 @@ async def compile_verilog(
                     "success": True,
                     "top_module": top_module,
                     "duration": round(duration, 3),
-                    "message": f"编译成功: {top_module}"
+                    "message": f"编译成功: {top_module}",
                 }
             else:
                 # 解析错误信息
@@ -62,7 +53,7 @@ async def compile_verilog(
                     "top_module": top_module,
                     "duration": round(duration, 3),
                     "errors": errors,
-                    "raw_output": result.stderr
+                    "raw_output": result.stderr,
                 }
 
     except FileNotFoundError:
@@ -72,18 +63,12 @@ async def compile_verilog(
                 "Icarus Verilog 未安装。"
                 "请运行: scoop install iverilog (Windows)"
                 " 或 brew install icarus-verilog (macOS)"
-            )
+            ),
         }
     except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "error": "编译超时 (>30s)"
-        }
+        return {"success": False, "error": "编译超时 (>30s)"}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 def _parse_errors(stderr: str) -> list[dict]:
@@ -98,15 +83,15 @@ def _parse_errors(stderr: str) -> list[dict]:
     for line in stderr.splitlines():
         match = re.match(pattern, line)
         if match:
-            errors.append({
-                "file": match.group(1),
-                "line": int(match.group(2)),
-                "level": match.group(3),
-                "message": match.group(4)
-            })
+            errors.append(
+                {
+                    "file": match.group(1),
+                    "line": int(match.group(2)),
+                    "level": match.group(3),
+                    "message": match.group(4),
+                }
+            )
         elif line.strip():
-            errors.append({
-                "message": line.strip()
-            })
+            errors.append({"message": line.strip()})
 
     return errors

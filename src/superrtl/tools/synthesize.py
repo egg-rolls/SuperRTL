@@ -10,11 +10,7 @@ from pathlib import Path
 from ..utils import extract_top_module, run_command
 
 
-async def synthesize_verilog(
-    code: str,
-    top_module: str = "",
-    target: str = "generic"
-) -> dict:
+async def synthesize_verilog(code: str, top_module: str = "", target: str = "generic") -> dict:
     """
     使用 Yosys 进行综合检查
 
@@ -52,10 +48,7 @@ stat
             script_file.write_text(synth_script)
 
             # 执行综合
-            result = run_command(
-                ["yosys", "-s", str(script_file)],
-                timeout=60
-            )
+            result = run_command(["yosys", "-s", str(script_file)], timeout=60)
 
             duration = time.perf_counter() - start_time
 
@@ -68,28 +61,20 @@ stat
                 "target": target,
                 "duration": round(duration, 3),
                 "resources": resources,
-                "errors": result.stderr.splitlines() if result.returncode != 0 else []
+                "errors": result.stderr.splitlines() if result.returncode != 0 else [],
             }
 
     except FileNotFoundError:
         return {
             "success": False,
             "error": (
-                "Yosys 未安装。"
-                "请运行: scoop install yosys (Windows)"
-                " 或 brew install yosys (macOS)"
-            )
+                "Yosys 未安装。请运行: scoop install yosys (Windows) 或 brew install yosys (macOS)"
+            ),
         }
     except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "error": "综合超时 (>60s)"
-        }
+        return {"success": False, "error": "综合超时 (>60s)"}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 def _parse_resources(output: str) -> dict:
