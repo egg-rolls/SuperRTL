@@ -157,3 +157,40 @@ git push --tags
 - Team members fork and submit PRs
 - See `CONTRIBUTING.md` for guidelines
 - GitHub Actions CI/CD for testing and publishing
+
+## CI/CD 注意事项
+
+### 必须在提交前格式化代码
+
+CI 会运行 `ruff format --check`，如果代码未格式化会失败。**每次提交前必须运行**：
+
+```bash
+ruff format src/ tests/
+ruff check src/ tests/
+```
+
+### Windows 编码问题
+
+项目包含中文字符（用户界面消息、注释）。在 Windows CI 环境中需要注意：
+
+1. **测试文件输出**：避免在测试中直接输出包含中文的文件内容，使用 `mix_stderr=False` 或忽略编码错误
+2. **Rich 控制台**：避免使用 Unicode 特殊字符（如 ✅ ❌ 📊），使用 ASCII 替代（如 [OK] [FAIL] [INFO]）
+3. **文件写入**：写入包含中文的文件时，显式指定 `encoding="utf-8"`
+
+### 推荐的提交流程
+
+```bash
+# 1. 格式化
+ruff format src/ tests/
+
+# 2. 检查
+ruff check src/ tests/
+
+# 3. 测试
+pytest tests/ -v
+
+# 4. 提交
+git add -A
+git commit -m "feat: your feature"
+git push
+```
