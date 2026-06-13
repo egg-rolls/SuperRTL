@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "superrtl"
+version = "0.2.0"
+description = "Verilog EDA 工具的 MCP/CLI 客户端 - 一键安装，开箱即用"
+readme = "docs/README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "RTL-Agent Team", email = "team@rtl-agent.dev" }
+]
+keywords = ["verilog", "rtl", "eda", "mcp", "fpga", "icarus", "yosys", "verilator"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Testing",
+]
+
+dependencies = [
+    # MCP 协议
+    "mcp>=1.0.0",
+
+    # CLI 框架
+    "click>=8.0.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+superrtl = "superrtl.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/RTL-Agent/SuperRTL"
+Repository = "https://github.com/RTL-Agent/SuperRTL"
+Documentation = "https://github.com/RTL-Agent/SuperRTL#readme"
+Issues = "https://github.com/RTL-Agent/SuperRTL/issues"
+Changelog = "https://github.com/RTL-Agent/SuperRTL/blob/main/CHANGELOG.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/superrtl"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/superrtl/",
+    "shared/",
+    "tests/",
+    "docs/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
