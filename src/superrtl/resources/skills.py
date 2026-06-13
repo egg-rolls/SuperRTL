@@ -5,9 +5,15 @@ Skills 资源管理
 import json
 from pathlib import Path
 
-# Skills 目录 (相对于项目根目录)
-# src/superrtl/resources/skills.py -> 4 levels up to project root
-SKILLS_DIR = Path(__file__).parent.parent.parent.parent / "shared" / "skills"
+# Skills 目录
+# 优先使用包内的 shared 目录（安装后）
+# 回退到项目根目录的 shared 目录（开发模式）
+_PACKAGE_DIR = Path(__file__).parent.parent
+SKILLS_DIR = _PACKAGE_DIR / "shared" / "skills"
+
+# 如果包内没有，尝试项目根目录（开发模式）
+if not SKILLS_DIR.exists():
+    SKILLS_DIR = _PACKAGE_DIR.parent.parent / "shared" / "skills"
 
 
 async def list_skills() -> str:

@@ -5,9 +5,15 @@
 import json
 from pathlib import Path
 
-# 模板目录 (相对于项目根目录)
-# src/superrtl/resources/templates.py -> 4 levels up to project root
-TEMPLATES_DIR = Path(__file__).parent.parent.parent.parent / "shared" / "templates"
+# 模板目录
+# 优先使用包内的 shared 目录（安装后）
+# 回退到项目根目录的 shared 目录（开发模式）
+_PACKAGE_DIR = Path(__file__).parent.parent
+TEMPLATES_DIR = _PACKAGE_DIR / "shared" / "templates"
+
+# 如果包内没有，尝试项目根目录（开发模式）
+if not TEMPLATES_DIR.exists():
+    TEMPLATES_DIR = _PACKAGE_DIR.parent.parent / "shared" / "templates"
 
 
 async def list_templates() -> str:

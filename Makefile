@@ -37,12 +37,6 @@ bump-minor: ## 递增次版本号 (0.2.0 -> 0.3.0)
 bump-major: ## 递增主版本号 (0.2.0 -> 1.0.0)
 	python scripts/bump_version.py major
 
-docker-build: ## 构建 Docker 镜像
-	docker build -t superrtl .
-
-docker-run: ## 运行 Docker 容器
-	docker run -it superrtl
-
 setup: ## 安装 EDA 工具
 	superrtl setup
 

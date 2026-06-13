@@ -58,6 +58,8 @@ Changelog = "https://github.com/RTL-Agent/SuperRTL/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/superrtl"]
+[tool.hatch.build.targets.wheel.force-include]
+"shared" = "superrtl/shared"
 
 [tool.hatch.build.targets.sdist]
 include = [

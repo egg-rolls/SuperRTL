@@ -4,7 +4,6 @@ EDA 工具安装管理
 支持从 GitHub 下载 OSS CAD Suite（包含 iverilog、yosys、verilator）
 """
 
-import os
 import platform
 import shutil
 import subprocess
