@@ -36,6 +36,9 @@ dependencies = [
     # CLI 框架
     "click>=8.0.0",
     "rich>=13.0.0",
+
+    # 项目配置
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
