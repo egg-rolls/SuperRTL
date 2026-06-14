@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-14
+
+### Added
+
+**Skills Expansion**
+- 20 skills total (was 11): added SPI, I2C, AXI-Lite, PWM, debouncer, edge detector, arbiter, CRC, reset sync
+- All skills include: design points, code templates, common errors, verification checklist
+
+**Testbench Generation**
+- Generate actual test stimulus (zero, all-ones, increment, alternating, random)
+- Comprehensive mode with self-checking assertions
+- Test summary with pass/fail counts
+- Better comments explaining each test case
+
+**Robustness**
+- Input validation module (file size, code length, file count limits)
+- Logging system with configurable levels
+- Resource cleanup with signal handlers
+- MCP Prompts: 6 skill-based prompts for AI agents
+
 ## [0.3.0] - 2026-06-14
 
 ### Added

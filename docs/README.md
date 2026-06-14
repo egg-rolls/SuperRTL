@@ -41,8 +41,19 @@
 
 | Resource | 功能 |
 |----------|------|
-| `skills://{name}` | 设计模式文档 (11 个) |
+| `skills://{name}` | 设计模式文档 (20 个) |
 | `templates://{name}` | 代码模板 (10 个) |
+
+### MCP Prompts
+
+| Prompt | 功能 |
+|--------|------|
+| `design-fsm` | FSM 设计助手 |
+| `design-fifo` | FIFO 设计助手 |
+| `design-uart` | UART 设计助手 |
+| `design-cdc` | CDC 设计助手 |
+| `review-code` | 代码审查助手 |
+| `generate-testbench` | Testbench 生成助手 |
 
 ---
 
