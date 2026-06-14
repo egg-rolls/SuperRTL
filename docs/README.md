@@ -16,23 +16,33 @@
 
 ## 核心功能
 
+### 项目管理
+
+| 命令 | 功能 |
+|------|------|
+| `superrtl init` | 初始化项目配置 (.superrtl.yaml) |
+| `superrtl build` | 根据配置编译 (自动依赖排序) |
+| `superrtl test` | 运行所有测试平台 |
+| `superrtl graph` | 显示模块依赖图 |
+| `superrtl watch` | 监视文件变化，自动编译 |
+
 ### MCP Tools
 
 | Tool | 命令 | 功能 | 依赖 |
 |------|------|------|------|
-| `compile_verilog` | `superrtl compile` | 编译 Verilog 代码 | Icarus Verilog |
-| `simulate_verilog` | `superrtl simulate` | 运行仿真 | Icarus Verilog |
+| `compile_verilog` | `superrtl compile` | 编译 (支持多文件) | Icarus Verilog |
+| `simulate_verilog` | `superrtl simulate` | 仿真 (支持多文件) | Icarus Verilog |
 | `lint_verilog` | `superrtl lint` | Lint 检查 | Verilator |
 | `synthesize_verilog` | `superrtl synthesize` | 综合检查 | Yosys |
 | `generate_testbench` | `superrtl testbench` | 生成测试平台 | 内置 |
-| `analyze_waveform` | `superrtl waveform` | 分析波形 | 内置 |
+| `analyze_waveform` | `superrtl waveform` | 波形分析/查看 | 内置 |
 
 ### MCP Resources
 
 | Resource | 功能 |
 |----------|------|
-| `skills://{name}` | 获取设计模式文档 |
-| `templates://{name}` | 获取代码模板 |
+| `skills://{name}` | 设计模式文档 (11 个) |
+| `templates://{name}` | 代码模板 (10 个) |
 
 ---
 
@@ -92,14 +102,33 @@ EDA 工具状态
 所有工具已安装
 ```
 
-### 使用 CLI
+### 使用 CLI - 项目模式
+
+```bash
+# 初始化项目
+superrtl init --name my_project --top top_module
+
+# 编译 (自动依赖排序)
+superrtl build
+
+# 运行所有测试
+superrtl test
+
+# 查看模块依赖图
+superrtl graph
+
+# 监视文件变化
+superrtl watch
+```
+
+### 使用 CLI - 单文件模式
 
 ```bash
 # 编译
 superrtl compile design.v
 
 # 仿真
-superrtl simulate design.v testbench.v
+superrtl simulate testbench.v design.v
 
 # Lint
 superrtl lint design.v
@@ -110,8 +139,23 @@ superrtl synthesize design.v --top counter
 # 生成 Testbench
 superrtl testbench design.v
 
-# 分析波形
-superrtl waveform simulation.vcd
+# 波形分析
+superrtl waveform analyze simulation.vcd
+
+# 波形查看器
+superrtl waveform view simulation.vcd
+```
+
+### 使用 CLI - 多文件模式
+
+```bash
+# 多文件编译
+superrtl compile src/*.v
+superrtl compile src/
+
+# 多文件仿真
+superrtl simulate tb.v src/*.v
+superrtl simulate tb.v alu.v counter.v
 ```
 
 ### 使用 MCP Server

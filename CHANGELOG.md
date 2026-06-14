@@ -5,11 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-06-14
 
 ### Added
-- GitHub Actions CI/CD pipeline
-- PyPI publishing workflow
+
+**Project Management (Breaking)**
+- **Project configuration**: `.superrtl.yaml` project config file
+- **`superrtl init`**: Auto-detect sources, generate project config
+- **`superrtl build`**: Compile with automatic dependency ordering
+- **`superrtl test`**: Run all testbenches from config
+- **`superrtl graph`**: Module dependency visualization (text/dot/json)
+- **`superrtl watch`**: Auto-compile on file changes
+
+**Multi-file Support (Breaking)**
+- `compile` and `simulate` commands now support multiple files
+- Glob patterns: `superrtl compile src/*.v`
+- Directory mode: `superrtl compile src/`
+- Dependency auto-resolution: topological sort for compilation order
+- Circular dependency detection
+
+**Waveform Viewer**
+- Interactive web-based waveform viewer: `superrtl waveform view`
+- Canvas-based rendering with zoom/pan
+- Signal search and filtering
+- Bus signal grouping (hex display)
+- Cursor tracking with value tooltip
+- HiDPI/Retina display support
+
+**Skills & Templates**
+- 11 skills (was 9): added UART, memory, testbench methodology
+- 10 templates (was 2): added FSM, FIFO, decoder, mux, shift_reg, clk_div, synchronizer, RAM
+- YAML frontmatter metadata for all skills
+- `superrtl skills list` and `superrtl skills show` CLI commands
+
+**CLI Improvements**
+- `--json` flag on all tool commands
+- Rich progress spinners during execution
+- `waveform` command group with `analyze` and `view` subcommands
+
+### Changed
+- `simulate` command syntax: `superrtl simulate <testbench> <designs...>`
+- `compile` command accepts multiple files
+- VCD files now copied to current directory after simulation
+- Synthesis `target` parameter now functional (generic/xilinx/ice40)
+- Testbench `style` parameter now affects generation
+
+### Fixed
+- VCD file deleted before caller could use it
+- `target` parameter in synthesize was a no-op
+- `style` parameter in testbench had no effect
+- FileNotFoundError messages now recommend `superrtl setup`
+- Windows CI encoding issues with Chinese characters
+- Parameterized module instantiation parsing
+
+### Tests
+- 139 tests (was 104), all passing
+- Added test_project.py: 14 tests for project configuration
+- Added test_deps.py: 21 tests for dependency resolution
 
 ## [0.2.0] - 2026-06-13
 
@@ -47,6 +99,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VCD waveform analysis
 - Skills and templates resources
 
-[Unreleased]: https://github.com/RTL-Agent/SuperRTL/compare/v0.2.0...HEAD
+[0.3.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/RTL-Agent/SuperRTL/releases/tag/v0.1.0
