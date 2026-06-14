@@ -1,0 +1,14 @@
+#!/bin/bash
+# Git pre-push hook
+# 自动运行 ruff 格式化和检查
+
+set -e
+
+echo "[pre-push] Running ruff format..."
+python -m ruff format src/ tests/
+
+echo "[pre-push] Running ruff check..."
+python -m ruff check src/ tests/
+
+echo "[pre-push] All checks passed!"
+exit 0
