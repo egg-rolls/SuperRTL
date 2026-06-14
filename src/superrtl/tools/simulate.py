@@ -2,6 +2,7 @@
 Icarus Verilog 仿真工具
 """
 
+import shutil
 import subprocess
 import tempfile
 import time
@@ -30,10 +31,10 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
 
             # 写入文件
             design_file = tmpdir_path / "design.v"
-            design_file.write_text(code)
+            design_file.write_text(code, encoding="utf-8")
 
             tb_file = tmpdir_path / "testbench.v"
-            tb_file.write_text(testbench)
+            tb_file.write_text(testbench, encoding="utf-8")
 
             # 编译
             output_file = tmpdir_path / "simulation.vvp"
@@ -58,8 +59,8 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
 
             duration = time.perf_counter() - start_time
 
-            # 判断结果
-            passed = "PASS" in sim_result.stdout
+            # 判断结果 - 使用精确匹配避免误判
+            passed = "PASS" in sim_result.stdout and "FAIL" not in sim_result.stdout
 
             result = {
                 "success": True,
@@ -69,10 +70,12 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
                 "output": sim_result.stdout,
             }
 
-            # 如果有 VCD 文件，记录信息
+            # 如果有 VCD 文件，复制到当前目录以便后续使用
             if vcd_file.exists():
-                result["vcd_file"] = str(vcd_file)
-                result["vcd_size"] = vcd_file.stat().st_size
+                persistent_vcd = Path.cwd() / "simulation.vcd"
+                shutil.copy2(str(vcd_file), str(persistent_vcd))
+                result["vcd_file"] = str(persistent_vcd)
+                result["vcd_size"] = persistent_vcd.stat().st_size
 
             # 如果有错误输出
             if sim_result.stderr:
@@ -83,11 +86,7 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
     except FileNotFoundError:
         return {
             "success": False,
-            "error": (
-                "Icarus Verilog 未安装。"
-                "请运行: scoop install iverilog (Windows)"
-                " 或 brew install icarus-verilog (macOS)"
-            ),
+            "error": "Icarus Verilog 未安装。请运行: superrtl setup",
         }
     except subprocess.TimeoutExpired:
         return {"success": False, "stage": "simulation", "error": f"仿真超时 (>{timeout}s)"}

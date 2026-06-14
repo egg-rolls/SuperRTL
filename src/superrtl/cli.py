@@ -16,6 +16,12 @@ from . import __version__
 console = Console()
 
 
+def _output_result(result: dict, as_json: bool):
+    """统一输出结果"""
+    if as_json:
+        console.print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="superrtl")
 def main():
@@ -92,15 +98,24 @@ def skills_show(name: str, as_json: bool):
     console.print(data.get("content", ""))
 
 
+# ============ 工具命令 ============
+
+
 @main.command()
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--top", "-t", default="", help="顶层模块名")
-def compile(file: str, top: str):
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def compile(file: str, top: str, as_json: bool):
     """编译 Verilog 代码"""
     from .tools import compile_verilog
 
-    code = Path(file).read_text()
-    result = asyncio.run(compile_verilog(code, top))
+    code = Path(file).read_text(encoding="utf-8")
+    with console.status("[bold blue]编译中..."):
+        result = asyncio.run(compile_verilog(code, top))
+
+    if as_json:
+        _output_result(result, True)
+        return
 
     if result.get("success"):
         console.print(f"[OK] [green]编译成功[/green]: {result.get('top_module')}")
@@ -108,20 +123,31 @@ def compile(file: str, top: str):
     else:
         console.print("[FAIL] [red]编译失败[/red]")
         for error in result.get("errors", []):
-            console.print(f"   {error}")
+            if isinstance(error, dict):
+                console.print(
+                    f"   {error.get('file', '')}:{error.get('line', '')} {error.get('message', '')}"
+                )
+            else:
+                console.print(f"   {error}")
 
 
 @main.command()
 @click.argument("design", type=click.Path(exists=True))
 @click.argument("testbench", type=click.Path(exists=True))
 @click.option("--timeout", "-t", default=30, help="超时时间 (秒)")
-def simulate(design: str, testbench: str, timeout: int):
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def simulate(design: str, testbench: str, timeout: int, as_json: bool):
     """运行 Verilog 仿真"""
     from .tools import simulate_verilog
 
-    design_code = Path(design).read_text()
-    tb_code = Path(testbench).read_text()
-    result = asyncio.run(simulate_verilog(design_code, tb_code, timeout))
+    design_code = Path(design).read_text(encoding="utf-8")
+    tb_code = Path(testbench).read_text(encoding="utf-8")
+    with console.status("[bold blue]仿真中..."):
+        result = asyncio.run(simulate_verilog(design_code, tb_code, timeout))
+
+    if as_json:
+        _output_result(result, True)
+        return
 
     if result.get("success"):
         if result.get("passed"):
@@ -130,7 +156,9 @@ def simulate(design: str, testbench: str, timeout: int):
             console.print("[FAIL] [red]仿真失败[/red]")
         console.print(f"   耗时: {result.get('duration')}s")
         if result.get("output"):
-            console.print(f"   输出: {result['output'][:200]}")
+            console.print(f"   输出:\n{result['output']}")
+        if result.get("vcd_file"):
+            console.print(f"   VCD 文件: {result['vcd_file']}")
     else:
         console.print(f"[FAIL] [red]仿真错误[/red]: {result.get('error')}")
 
@@ -140,12 +168,18 @@ def simulate(design: str, testbench: str, timeout: int):
 @click.option(
     "--style", "-s", default="default", type=click.Choice(["default", "strict", "relaxed"])
 )
-def lint(file: str, style: str):
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def lint(file: str, style: str, as_json: bool):
     """Lint 检查"""
     from .tools import lint_verilog
 
-    code = Path(file).read_text()
-    result = asyncio.run(lint_verilog(code, style))
+    code = Path(file).read_text(encoding="utf-8")
+    with console.status("[bold blue]Lint 检查中..."):
+        result = asyncio.run(lint_verilog(code, style))
+
+    if as_json:
+        _output_result(result, True)
+        return
 
     if result.get("success"):
         console.print("[OK] [green]Lint 通过[/green]")
@@ -167,12 +201,18 @@ def lint(file: str, style: str):
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--top", "-t", default="", help="顶层模块名")
 @click.option("--target", default="generic", type=click.Choice(["generic", "xilinx", "ice40"]))
-def synthesize(file: str, top: str, target: str):
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def synthesize(file: str, top: str, target: str, as_json: bool):
     """综合检查"""
     from .tools import synthesize_verilog
 
-    code = Path(file).read_text()
-    result = asyncio.run(synthesize_verilog(code, top, target))
+    code = Path(file).read_text(encoding="utf-8")
+    with console.status("[bold blue]综合中..."):
+        result = asyncio.run(synthesize_verilog(code, top, target))
+
+    if as_json:
+        _output_result(result, True)
+        return
 
     if result.get("success"):
         console.print(f"[OK] [green]综合通过[/green]: {result.get('top_module')}")
@@ -191,35 +231,47 @@ def synthesize(file: str, top: str, target: str):
 @click.option("--style", "-s", default="basic", type=click.Choice(["basic", "comprehensive"]))
 @click.option("--cases", "-c", default=3, help="测试用例数量")
 @click.option("--output", "-o", default="", help="输出文件路径")
-def testbench(file: str, style: str, cases: int, output: str):
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def testbench(file: str, style: str, cases: int, output: str, as_json: bool):
     """生成 Testbench"""
     from .tools import generate_testbench
 
-    code = Path(file).read_text()
-    result = asyncio.run(generate_testbench(code, style, cases))
+    code = Path(file).read_text(encoding="utf-8")
+    with console.status("[bold blue]生成 Testbench..."):
+        result = asyncio.run(generate_testbench(code, style, cases))
+
+    if as_json:
+        _output_result(result, True)
+        return
 
     if result.get("success"):
         tb_code = result["testbench"]
 
         if output:
-            Path(output).write_text(tb_code)
+            Path(output).write_text(tb_code, encoding="utf-8")
             console.print(f"[OK] [green]Testbench 已保存[/green]: {output}")
         else:
             console.print(Syntax(tb_code, "verilog"))
     else:
-        console.print("[FAIL] [red]生成失败[/red]")
+        console.print(f"[FAIL] [red]生成失败[/red]: {result.get('error')}")
 
 
 @main.command()
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--signals", "-s", multiple=True, help="要分析的信号")
-def waveform(file: str, signals: tuple):
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def waveform(file: str, signals: tuple, as_json: bool):
     """分析波形"""
     from .tools import analyze_waveform
 
-    result = asyncio.run(
-        analyze_waveform(vcd_file=file, signals=list(signals) if signals else None)
-    )
+    with console.status("[bold blue]分析波形..."):
+        result = asyncio.run(
+            analyze_waveform(vcd_file=file, signals=list(signals) if signals else None)
+        )
+
+    if as_json:
+        _output_result(result, True)
+        return
 
     if result.get("success"):
         console.print("[INFO] [blue]波形分析[/blue]")
@@ -257,18 +309,13 @@ def uninstall():
 
 
 @main.command()
-@click.option("--transport", "-t", default="stdio", type=click.Choice(["stdio", "sse"]))
 @click.option("--port", "-p", default=8080, help="SSE 端口")
-def mcp(transport: str, port: int):
-    """启动 MCP Server"""
+def mcp(port: int):
+    """启动 MCP Server (stdio 模式)"""
     from .server import main as server_main
 
-    if transport == "stdio":
-        console.print("[START] [green]启动 SuperRTL MCP Server (stdio 模式)[/green]")
-        server_main()
-    else:
-        console.print(f"[START] [green]启动 SuperRTL MCP Server (SSE 模式, 端口: {port})[/green]")
-        console.print("[yellow]SSE 模式暂未实现，请使用 stdio 模式[/yellow]")
+    console.print("[START] [green]启动 SuperRTL MCP Server[/green]")
+    server_main()
 
 
 if __name__ == "__main__":

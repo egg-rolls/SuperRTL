@@ -9,6 +9,13 @@ from pathlib import Path
 
 from ..utils import extract_top_module, run_command
 
+# 目标工艺库对应的综合命令
+_TARGET_SYNTH = {
+    "generic": "synth",
+    "xilinx": "synth_xilinx",
+    "ice40": "synth_ice40",
+}
+
 
 async def synthesize_verilog(code: str, top_module: str = "", target: str = "generic") -> dict:
     """
@@ -25,13 +32,16 @@ async def synthesize_verilog(code: str, top_module: str = "", target: str = "gen
     top_module = top_module or extract_top_module(code)
     start_time = time.perf_counter()
 
+    # 根据 target 选择综合命令
+    synth_cmd = _TARGET_SYNTH.get(target, "synth")
+
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
             # 写入代码文件
             design_file = tmpdir_path / "design.v"
-            design_file.write_text(code)
+            design_file.write_text(code, encoding="utf-8")
 
             # 创建综合脚本
             synth_script = f"""
@@ -41,11 +51,11 @@ proc
 opt
 fsm
 opt
-synth
+{synth_cmd}
 stat
 """
             script_file = tmpdir_path / "synth.ys"
-            script_file.write_text(synth_script)
+            script_file.write_text(synth_script, encoding="utf-8")
 
             # 执行综合
             result = run_command(["yosys", "-s", str(script_file)], timeout=60)
@@ -67,9 +77,7 @@ stat
     except FileNotFoundError:
         return {
             "success": False,
-            "error": (
-                "Yosys 未安装。请运行: scoop install yosys (Windows) 或 brew install yosys (macOS)"
-            ),
+            "error": "Yosys 未安装。请运行: superrtl setup",
         }
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "综合超时 (>60s)"}

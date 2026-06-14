@@ -59,11 +59,7 @@ async def compile_verilog(code: str, top_module: str = "") -> dict:
     except FileNotFoundError:
         return {
             "success": False,
-            "error": (
-                "Icarus Verilog 未安装。"
-                "请运行: scoop install iverilog (Windows)"
-                " 或 brew install icarus-verilog (macOS)"
-            ),
+            "error": "Icarus Verilog 未安装。请运行: superrtl setup",
         }
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "编译超时 (>30s)"}

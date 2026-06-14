@@ -67,11 +67,7 @@ async def lint_verilog(code: str, style: str = "default") -> dict:
     except FileNotFoundError:
         return {
             "success": False,
-            "error": (
-                "Verilator 未安装。"
-                "请运行: scoop install verilator (Windows)"
-                " 或 brew install verilator (macOS)"
-            ),
+            "error": "Verilator 未安装。请运行: superrtl setup",
         }
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "Lint 检查超时 (>30s)"}

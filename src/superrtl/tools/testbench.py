@@ -17,8 +17,14 @@ async def generate_testbench(code: str, style: str = "basic", test_cases: int = 
     Returns:
         生成的 Testbench 代码
     """
-    top_module = extract_top_module(code)
-    ports = extract_ports(code)
+    try:
+        top_module = extract_top_module(code)
+        ports = extract_ports(code)
+    except Exception as e:
+        return {"success": False, "error": f"解析代码失败: {e}"}
+
+    if not top_module:
+        return {"success": False, "error": "未找到顶层模块定义"}
 
     # 分离时钟、复位和其他信号
     clk_name = None
@@ -36,9 +42,13 @@ async def generate_testbench(code: str, style: str = "basic", test_cases: int = 
     has_clk = clk_name is not None
     has_rst = rst_name is not None
 
-    # 如果没有时钟，使用默认名（但不连接）
+    # 如果没有时钟，使用默认名
     if not has_clk:
         clk_name = "clk"
+
+    # 综合模式增加测试用例数
+    if style == "comprehensive":
+        test_cases = max(test_cases, 5)
 
     # 生成 Testbench
     tb_code = f"""`timescale 1ns/1ps
@@ -46,7 +56,7 @@ async def generate_testbench(code: str, style: str = "basic", test_cases: int = 
 module {top_module}_tb;
 """
 
-    # 时钟和复位声明（如果需要）
+    # 时钟和复位声明
     if has_clk:
         tb_code += f"""
     // 时钟和复位
@@ -60,7 +70,6 @@ module {top_module}_tb;
     // 待测模块信号
 """
 
-    # 声明信号
     for port in other_ports:
         width_str = f"[{port['width'] - 1}:0] " if port["width"] > 1 else ""
         if port["direction"] == "input":
@@ -68,13 +77,20 @@ module {top_module}_tb;
         else:
             tb_code += f"    wire {width_str}{port['name']};\n"
 
+    # 综合模式添加结果检查变量
+    if style == "comprehensive":
+        tb_code += """
+    // 测试控制
+    integer test_count = 0;
+    integer pass_count = 0;
+"""
+
     # 实例化待测模块
     tb_code += f"""
     // 实例化待测模块
     {top_module} uut (
 """
 
-    # 连接端口
     port_connections = []
     if has_clk:
         port_connections.append(f"        .{clk_name}({clk_name})")
@@ -85,7 +101,7 @@ module {top_module}_tb;
     tb_code += ",\n".join(port_connections) + "\n"
     tb_code += "    );\n"
 
-    # 时钟生成（如果有时钟端口）
+    # 时钟生成
     if has_clk:
         tb_code += f"""
     // 时钟生成
@@ -101,7 +117,7 @@ module {top_module}_tb;
     initial begin
 """
 
-    # 复位逻辑（如果有复位端口）
+    # 复位逻辑
     if has_rst:
         tb_code += f"""        // 复位
         {rst_name} = 0;
@@ -110,21 +126,48 @@ module {top_module}_tb;
 
 """
 
-    # 添加测试激励
+    # 添加测试用例
     for i in range(test_cases):
-        tb_code += f"""
+        if style == "comprehensive":
+            tb_code += f"""        // 测试用例 {i + 1} - 边界条件测试
+        test_count = test_count + 1;
+"""
+            # 为输入端口生成不同激励
+            for port in other_ports:
+                if port["direction"] == "input":
+                    if i == 0:
+                        tb_code += f"        {port['name']} = 0;  // 最小值\n"
+                    elif i == 1 and port["width"] > 1:
+                        max_val = (1 << port["width"]) - 1
+                        tb_code += f"        {port['name']} = {max_val};  // 最大值\n"
+                    else:
+                        tb_code += f"        {port['name']} = {i};\n"
+            tb_code += "        #20;\n\n"
+        else:
+            tb_code += f"""
         // 测试用例 {i + 1}
         #100;
 """
 
     # 结尾
-    tb_code += f"""
+    if style == "comprehensive":
+        tb_code += """
+        // 测试完成
+        $display("Test cases: %0d", test_count);
+        $display("PASS");
+        $finish;
+    end
+"""
+    else:
+        tb_code += """
         // 测试完成
         #100;
         $display("PASS");
         $finish;
     end
+"""
 
+    tb_code += f"""
     // 波形输出
     initial begin
         $dumpfile("{top_module}_tb.vcd");
