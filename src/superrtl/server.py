@@ -30,27 +30,36 @@ app = Server("superrtl")
 TOOLS = [
     types.Tool(
         name="compile_verilog",
-        description="使用 Icarus Verilog 编译 Verilog 代码",
+        description="使用 Icarus Verilog 编译 Verilog 代码（支持单文件或多文件）",
         inputSchema={
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "Verilog 源代码"},
+                "code": {"type": "string", "description": "Verilog 源代码（单文件模式）"},
+                "files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "多个设计文件代码列表（多文件模式）",
+                },
                 "top_module": {"type": "string", "description": "顶层模块名 (可选)", "default": ""},
             },
-            "required": ["code"],
         },
     ),
     types.Tool(
         name="simulate_verilog",
-        description="使用 Icarus Verilog 运行仿真",
+        description="使用 Icarus Verilog 运行仿真（支持单文件或多文件）",
         inputSchema={
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "Verilog 源代码"},
+                "code": {"type": "string", "description": "设计文件代码（单文件模式）"},
+                "design_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "多个设计文件代码列表（多文件模式）",
+                },
                 "testbench": {"type": "string", "description": "测试平台代码"},
                 "timeout": {"type": "integer", "description": "仿真超时时间 (秒)", "default": 30},
             },
-            "required": ["code", "testbench"],
+            "required": ["testbench"],
         },
     ),
     types.Tool(
@@ -139,10 +148,21 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     """处理工具调用"""
     try:
         if name == "compile_verilog":
-            result = await compile_verilog(arguments["code"], arguments.get("top_module", ""))
+            # 支持 code（单文件）或 files（多文件）
+            files = arguments.get("files")
+            code = arguments.get("code")
+            result = await compile_verilog(
+                code=code, files=files, top_module=arguments.get("top_module", "")
+            )
         elif name == "simulate_verilog":
+            # 支持 code（单文件）或 design_files（多文件）
+            code = arguments.get("code")
+            design_files = arguments.get("design_files")
             result = await simulate_verilog(
-                arguments["code"], arguments["testbench"], arguments.get("timeout", 30)
+                code=code,
+                testbench=arguments["testbench"],
+                timeout=arguments.get("timeout", 30),
+                design_files=design_files,
             )
         elif name == "lint_verilog":
             result = await lint_verilog(arguments["code"], arguments.get("style", "default"))

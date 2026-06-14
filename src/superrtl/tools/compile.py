@@ -10,31 +10,64 @@ from pathlib import Path
 from ..utils import extract_top_module, run_command
 
 
-async def compile_verilog(code: str, top_module: str = "") -> dict:
+async def compile_verilog(code: str = None, top_module: str = "", files: list[str] = None) -> dict:
     """
     编译 Verilog 代码
 
+    支持两种调用方式：
+    1. 单文件模式：传入 code 字符串
+    2. 多文件模式：传入 files（文件路径列表）
+
     Args:
-        code: Verilog 源代码
+        code: 单个设计文件代码（单文件模式）
         top_module: 顶层模块名 (可选)
+        files: 多个设计文件路径列表（多文件模式）
 
     Returns:
         编译结果字典
     """
-    top_module = top_module or extract_top_module(code)
     start_time = time.perf_counter()
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            # 写入代码文件
-            design_file = Path(tmpdir) / "design.v"
-            design_file.write_text(code)
+            tmpdir_path = Path(tmpdir)
+            source_files = []
+
+            # 多文件模式
+            if files:
+                for fp in files:
+                    p = Path(fp)
+                    if not p.exists():
+                        return {"success": False, "error": f"文件不存在: {fp}"}
+                    # 复制到临时目录
+                    dest = tmpdir_path / p.name
+                    dest.write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+                    source_files.append(str(dest))
+
+                if not top_module:
+                    # 尝试从第一个文件提取顶层模块
+                    first_code = Path(files[0]).read_text(encoding="utf-8")
+                    top_module = extract_top_module(first_code)
+
+            # 单文件模式
+            elif code:
+                design_file = tmpdir_path / "design.v"
+                design_file.write_text(code, encoding="utf-8")
+                source_files.append(str(design_file))
+
+                if not top_module:
+                    top_module = extract_top_module(code)
+            else:
+                return {"success": False, "error": "需要提供设计文件"}
 
             # 编译
-            output_file = Path(tmpdir) / "output.vvp"
-            result = run_command(
-                ["iverilog", "-o", str(output_file), "-s", top_module, str(design_file)], timeout=30
-            )
+            output_file = tmpdir_path / "output.vvp"
+            cmd = ["iverilog", "-o", str(output_file)]
+            if top_module:
+                cmd.extend(["-s", top_module])
+            cmd.extend(source_files)
+
+            result = run_command(cmd, timeout=30)
 
             duration = time.perf_counter() - start_time
 
@@ -42,15 +75,16 @@ async def compile_verilog(code: str, top_module: str = "") -> dict:
                 return {
                     "success": True,
                     "top_module": top_module,
+                    "source_files": len(source_files),
                     "duration": round(duration, 3),
                     "message": f"编译成功: {top_module}",
                 }
             else:
-                # 解析错误信息
                 errors = _parse_errors(result.stderr)
                 return {
                     "success": False,
                     "top_module": top_module,
+                    "source_files": len(source_files),
                     "duration": round(duration, 3),
                     "errors": errors,
                     "raw_output": result.stderr,
@@ -73,7 +107,6 @@ def _parse_errors(stderr: str) -> list[dict]:
 
     errors = []
 
-    # 匹配格式: file.v:line: error: message
     pattern = r"(.+?):(\d+):\s*(error|warning):\s*(.+)"
 
     for line in stderr.splitlines():

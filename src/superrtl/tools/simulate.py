@@ -11,14 +11,26 @@ from pathlib import Path
 from ..utils import run_command
 
 
-async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict:
+async def simulate_verilog(
+    code: str = None,
+    testbench: str = None,
+    timeout: int = 30,
+    design_files: list[str] = None,
+    design_file_paths: list[str] = None,
+) -> dict:
     """
     运行 Verilog 仿真
 
+    支持两种调用方式：
+    1. 单文件模式：传入 code 和 testbench 字符串
+    2. 多文件模式：传入 design_files（代码字符串列表）或 design_file_paths（文件路径列表）
+
     Args:
-        code: Verilog 源代码
+        code: 单个设计文件代码（单文件模式）
         testbench: 测试平台代码
         timeout: 仿真超时时间 (秒)
+        design_files: 多个设计文件代码字符串列表（多文件模式）
+        design_file_paths: 多个设计文件路径列表（多文件模式）
 
     Returns:
         仿真结果字典
@@ -28,18 +40,45 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
+            source_files = []
 
-            # 写入文件
-            design_file = tmpdir_path / "design.v"
-            design_file.write_text(code, encoding="utf-8")
+            # 多文件模式：从文件路径读取
+            if design_file_paths:
+                for fp in design_file_paths:
+                    p = Path(fp)
+                    if not p.exists():
+                        return {"success": False, "error": f"文件不存在: {fp}"}
+                    dest = tmpdir_path / p.name
+                    shutil.copy2(str(p), str(dest))
+                    source_files.append(str(dest))
+
+            # 多文件模式：从代码字符串写入
+            elif design_files:
+                for i, src_code in enumerate(design_files):
+                    dest = tmpdir_path / f"design_{i}.v"
+                    dest.write_text(src_code, encoding="utf-8")
+                    source_files.append(str(dest))
+
+            # 单文件模式
+            elif code:
+                design_file = tmpdir_path / "design.v"
+                design_file.write_text(code, encoding="utf-8")
+                source_files.append(str(design_file))
+            else:
+                return {"success": False, "error": "需要提供设计文件"}
+
+            # 写入测试平台
+            if not testbench:
+                return {"success": False, "error": "需要提供测试平台代码"}
 
             tb_file = tmpdir_path / "testbench.v"
             tb_file.write_text(testbench, encoding="utf-8")
+            source_files.append(str(tb_file))
 
             # 编译
             output_file = tmpdir_path / "simulation.vvp"
             compile_result = run_command(
-                ["iverilog", "-o", str(output_file), str(design_file), str(tb_file)],
+                ["iverilog", "-o", str(output_file)] + source_files,
                 timeout=timeout,
             )
 
@@ -58,7 +97,7 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
 
             duration = time.perf_counter() - start_time
 
-            # 判断结果 - 使用精确匹配避免误判
+            # 判断结果
             passed = "PASS" in sim_result.stdout and "FAIL" not in sim_result.stdout
 
             result = {
@@ -67,9 +106,10 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
                 "stage": "simulation",
                 "duration": round(duration, 3),
                 "output": sim_result.stdout,
+                "source_files": len(source_files) - 1,  # 不含 testbench
             }
 
-            # 查找 VCD 文件（可能是任意名称）
+            # 查找 VCD 文件
             vcd_files = list(tmpdir_path.glob("*.vcd"))
             if vcd_files:
                 vcd_file = vcd_files[0]
@@ -78,7 +118,6 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
                 result["vcd_file"] = str(persistent_vcd)
                 result["vcd_size"] = persistent_vcd.stat().st_size
 
-            # 如果有错误输出
             if sim_result.stderr:
                 result["warnings"] = sim_result.stderr.splitlines()
 

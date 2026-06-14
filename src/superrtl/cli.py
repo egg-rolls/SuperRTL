@@ -101,17 +101,62 @@ def skills_show(name: str, as_json: bool):
 # ============ 工具命令 ============
 
 
+def _resolve_files(patterns: tuple) -> list[str]:
+    """解析文件模式，支持 glob 和目录"""
+    import glob as glob_mod
+
+    files = []
+    for pattern in patterns:
+        p = Path(pattern)
+        if p.is_dir():
+            # 目录：递归查找 .v 和 .sv 文件
+            files.extend(sorted(str(f) for f in p.rglob("*.v")))
+            files.extend(sorted(str(f) for f in p.rglob("*.sv")))
+        elif "*" in pattern or "?" in pattern:
+            # Glob 模式
+            matched = sorted(glob_mod.glob(pattern))
+            if not matched:
+                console.print(f"[WARN] [yellow]未匹配到文件: {pattern}[/yellow]")
+            files.extend(matched)
+        elif p.exists():
+            files.append(str(p))
+        else:
+            console.print(f"[WARN] [yellow]文件不存在: {pattern}[/yellow]")
+
+    # 去重保持顺序
+    seen = set()
+    unique = []
+    for f in files:
+        if f not in seen:
+            seen.add(f)
+            unique.append(f)
+    return unique
+
+
 @main.command()
-@click.argument("file", type=click.Path(exists=True))
+@click.argument("files", nargs=-1, required=True)
 @click.option("--top", "-t", default="", help="顶层模块名")
 @click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
-def compile(file: str, top: str, as_json: bool):
-    """编译 Verilog 代码"""
+def compile(files: tuple, top: str, as_json: bool):
+    """编译 Verilog 代码
+
+    支持多文件、glob 模式、目录：
+
+    \b
+    superrtl compile top.v
+    superrtl compile src/*.v
+    superrtl compile src/ top.v
+    superrtl compile src/ --top my_module
+    """
     from .tools import compile_verilog
 
-    code = Path(file).read_text(encoding="utf-8")
-    with console.status("[bold blue]编译中..."):
-        result = asyncio.run(compile_verilog(code, top))
+    resolved = _resolve_files(files)
+    if not resolved:
+        console.print("[FAIL] [red]未找到任何文件[/red]")
+        raise SystemExit(1)
+
+    with console.status(f"[bold blue]编译 {len(resolved)} 个文件..."):
+        result = asyncio.run(compile_verilog(files=resolved, top_module=top))
 
     if as_json:
         _output_result(result, True)
@@ -119,6 +164,7 @@ def compile(file: str, top: str, as_json: bool):
 
     if result.get("success"):
         console.print(f"[OK] [green]编译成功[/green]: {result.get('top_module')}")
+        console.print(f"   文件数: {result.get('source_files', 1)}")
         console.print(f"   耗时: {result.get('duration')}s")
     else:
         console.print("[FAIL] [red]编译失败[/red]")
@@ -132,18 +178,37 @@ def compile(file: str, top: str, as_json: bool):
 
 
 @main.command()
-@click.argument("design", type=click.Path(exists=True))
 @click.argument("testbench", type=click.Path(exists=True))
+@click.argument("designs", nargs=-1, required=True)
 @click.option("--timeout", "-t", default=30, help="超时时间 (秒)")
 @click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
-def simulate(design: str, testbench: str, timeout: int, as_json: bool):
-    """运行 Verilog 仿真"""
+def simulate(testbench: str, designs: tuple, timeout: int, as_json: bool):
+    """运行 Verilog 仿真
+
+    测试平台在前，设计文件在后：
+
+    \b
+    superrtl simulate tb.v top.v
+    superrtl simulate tb.v src/*.v
+    superrtl simulate tb.v src/
+    """
     from .tools import simulate_verilog
 
-    design_code = Path(design).read_text(encoding="utf-8")
+    design_paths = _resolve_files(designs)
+    if not design_paths:
+        console.print("[FAIL] [red]未找到设计文件[/red]")
+        return
+
     tb_code = Path(testbench).read_text(encoding="utf-8")
-    with console.status("[bold blue]仿真中..."):
-        result = asyncio.run(simulate_verilog(design_code, tb_code, timeout))
+
+    with console.status(f"[bold blue]仿真 {len(design_paths)} 个设计文件..."):
+        result = asyncio.run(
+            simulate_verilog(
+                testbench=tb_code,
+                timeout=timeout,
+                design_file_paths=design_paths,
+            )
+        )
 
     if as_json:
         _output_result(result, True)
@@ -154,6 +219,7 @@ def simulate(design: str, testbench: str, timeout: int, as_json: bool):
             console.print("[OK] [green]仿真通过[/green]")
         else:
             console.print("[FAIL] [red]仿真失败[/red]")
+        console.print(f"   文件数: {result.get('source_files', 1)}")
         console.print(f"   耗时: {result.get('duration')}s")
         if result.get("output"):
             console.print(f"   输出:\n{result['output']}")
