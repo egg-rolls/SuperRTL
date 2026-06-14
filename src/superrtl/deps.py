@@ -29,8 +29,10 @@ def parse_modules(content: str) -> list[dict]:
         modules.append({"type": "definition", "name": match.group(1)})
 
     # 提取模块实例化
-    # 格式: module_name instance_name (
-    for match in re.finditer(r"^\s*(\w+)\s+(?:#\([^)]*\)\s+)?(\w+)\s*\(", content, re.MULTILINE):
+    # 格式: module_name instance_name ( 或 module_name #(...) instance_name (
+    for match in re.finditer(
+        r"^\s*(\w+)\s+(?:#\([^)]*(?:\([^)]*\))*[^)]*\)\s+)?(\w+)\s*\(", content, re.MULTILINE
+    ):
         mod_name = match.group(1)
         inst_name = match.group(2)
         # 排除关键字
