@@ -247,5 +247,4 @@ def start_waveform_server(
         "port": port,
         "signal_count": signal_count,
         "time_range": vcd_data.get("time_range", {}),
-        "server": server,
     }

@@ -52,7 +52,6 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
                 }
 
             # 仿真
-            vcd_file = tmpdir_path / "waveform.vcd"
             sim_result = run_command(
                 ["vvp", str(output_file)], timeout=timeout, cwd=str(tmpdir_path)
             )
@@ -70,8 +69,10 @@ async def simulate_verilog(code: str, testbench: str, timeout: int = 30) -> dict
                 "output": sim_result.stdout,
             }
 
-            # 如果有 VCD 文件，复制到当前目录以便后续使用
-            if vcd_file.exists():
+            # 查找 VCD 文件（可能是任意名称）
+            vcd_files = list(tmpdir_path.glob("*.vcd"))
+            if vcd_files:
+                vcd_file = vcd_files[0]
                 persistent_vcd = Path.cwd() / "simulation.vcd"
                 shutil.copy2(str(vcd_file), str(persistent_vcd))
                 result["vcd_file"] = str(persistent_vcd)
