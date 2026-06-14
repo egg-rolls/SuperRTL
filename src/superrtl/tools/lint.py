@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from ..utils import run_command
+from ..validation import ValidationError, validate_code, validate_timeout
 
 
 async def lint_verilog(code: str, style: str = "default") -> dict:
@@ -24,10 +25,14 @@ async def lint_verilog(code: str, style: str = "default") -> dict:
     start_time = time.perf_counter()
 
     try:
+        # 输入验证
+        validate_code(code, "code")
+        validate_timeout(30, "lint")
+
         with tempfile.TemporaryDirectory() as tmpdir:
             # 写入代码文件
             design_file = Path(tmpdir) / "design.v"
-            design_file.write_text(code)
+            design_file.write_text(code, encoding="utf-8")
 
             # 构建命令
             cmd = ["verilator", "--lint-only"]
@@ -64,12 +69,19 @@ async def lint_verilog(code: str, style: str = "default") -> dict:
                 "error_count": len(errors),
             }
 
+    except ValidationError as e:
+        return {"success": False, "error": e.message, "suggestion": e.suggestion}
     except FileNotFoundError:
         return {
             "success": False,
-            "error": "Verilator 未安装。请运行: superrtl setup",
+            "error": "Verilator 未安装",
+            "suggestion": "运行 superrtl setup 安装 EDA 工具",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": "Lint 检查超时 (>30s)"}
+        return {
+            "success": False,
+            "error": "Lint 检查超时 (>30s)",
+            "suggestion": "检查代码是否有过大的组合逻辑",
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}

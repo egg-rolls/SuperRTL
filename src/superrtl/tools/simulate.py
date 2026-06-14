@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from ..utils import run_command
+from ..validation import ValidationError, validate_code, validate_files_list, validate_timeout
 
 
 async def simulate_verilog(
@@ -38,6 +39,21 @@ async def simulate_verilog(
     start_time = time.perf_counter()
 
     try:
+        # 输入验证
+        timeout = validate_timeout(timeout, "simulate")
+
+        if not testbench:
+            return {"success": False, "error": "需要提供测试平台代码 (testbench 参数)"}
+
+        if design_file_paths:
+            validate_files_list(design_file_paths, "design_file_paths")
+        elif design_files:
+            validate_files_list(design_files, "design_files")
+        elif code:
+            validate_code(code, "code")
+        else:
+            return {"success": False, "error": "需要提供设计文件"}
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             source_files = []
@@ -64,13 +80,8 @@ async def simulate_verilog(
                 design_file = tmpdir_path / "design.v"
                 design_file.write_text(code, encoding="utf-8")
                 source_files.append(str(design_file))
-            else:
-                return {"success": False, "error": "需要提供设计文件"}
 
             # 写入测试平台
-            if not testbench:
-                return {"success": False, "error": "需要提供测试平台代码"}
-
             tb_file = tmpdir_path / "testbench.v"
             tb_file.write_text(testbench, encoding="utf-8")
             source_files.append(str(tb_file))
@@ -88,6 +99,7 @@ async def simulate_verilog(
                     "stage": "compilation",
                     "errors": compile_result.stderr.splitlines(),
                     "duration": time.perf_counter() - start_time,
+                    "suggestion": "检查模块名是否正确、端口连接是否匹配",
                 }
 
             # 仿真
@@ -106,7 +118,7 @@ async def simulate_verilog(
                 "stage": "simulation",
                 "duration": round(duration, 3),
                 "output": sim_result.stdout,
-                "source_files": len(source_files) - 1,  # 不含 testbench
+                "source_files": len(source_files) - 1,
             }
 
             # 查找 VCD 文件
@@ -123,12 +135,20 @@ async def simulate_verilog(
 
             return result
 
+    except ValidationError as e:
+        return {"success": False, "error": e.message, "suggestion": e.suggestion}
     except FileNotFoundError:
         return {
             "success": False,
-            "error": "Icarus Verilog 未安装。请运行: superrtl setup",
+            "error": "Icarus Verilog 未安装",
+            "suggestion": "运行 superrtl setup 安装 EDA 工具",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "stage": "simulation", "error": f"仿真超时 (>{timeout}s)"}
+        return {
+            "success": False,
+            "stage": "simulation",
+            "error": f"仿真超时 (>{timeout}s)",
+            "suggestion": "检查是否有无限循环，或使用 --timeout 增加超时时间",
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}

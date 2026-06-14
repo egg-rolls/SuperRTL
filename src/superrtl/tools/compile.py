@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from ..utils import extract_top_module, run_command
+from ..validation import ValidationError, validate_code, validate_files_list, validate_top_module
 
 
 async def compile_verilog(code: str = None, top_module: str = "", files: list[str] = None) -> dict:
@@ -29,6 +30,17 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
     start_time = time.perf_counter()
 
     try:
+        # 输入验证
+        if files:
+            validate_files_list(files, "files")
+        elif code:
+            validate_code(code, "code")
+        else:
+            return {"success": False, "error": "需要提供设计文件（code 或 files 参数）"}
+
+        if top_module:
+            top_module = validate_top_module(top_module)
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             source_files = []
@@ -39,13 +51,11 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
                     p = Path(fp)
                     if not p.exists():
                         return {"success": False, "error": f"文件不存在: {fp}"}
-                    # 复制到临时目录
                     dest = tmpdir_path / p.name
                     dest.write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
                     source_files.append(str(dest))
 
                 if not top_module:
-                    # 尝试从第一个文件提取顶层模块
                     first_code = Path(files[0]).read_text(encoding="utf-8")
                     top_module = extract_top_module(first_code)
 
@@ -57,8 +67,6 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
 
                 if not top_module:
                     top_module = extract_top_module(code)
-            else:
-                return {"success": False, "error": "需要提供设计文件"}
 
             # 编译
             output_file = tmpdir_path / "output.vvp"
@@ -90,13 +98,20 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
                     "raw_output": result.stderr,
                 }
 
+    except ValidationError as e:
+        return {"success": False, "error": e.message, "suggestion": e.suggestion}
     except FileNotFoundError:
         return {
             "success": False,
-            "error": "Icarus Verilog 未安装。请运行: superrtl setup",
+            "error": "Icarus Verilog 未安装",
+            "suggestion": "运行 superrtl setup 安装 EDA 工具",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": "编译超时 (>30s)"}
+        return {
+            "success": False,
+            "error": "编译超时 (>30s)",
+            "suggestion": "检查代码是否有无限循环或过大的组合逻辑",
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 

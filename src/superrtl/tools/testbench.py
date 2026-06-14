@@ -3,6 +3,7 @@ Testbench 生成工具
 """
 
 from ..utils import extract_ports, extract_top_module
+from ..validation import ValidationError, validate_code
 
 
 async def generate_testbench(code: str, style: str = "basic", test_cases: int = 3) -> dict:
@@ -18,13 +19,24 @@ async def generate_testbench(code: str, style: str = "basic", test_cases: int = 
         生成的 Testbench 代码
     """
     try:
+        validate_code(code, "code")
         top_module = extract_top_module(code)
         ports = extract_ports(code)
+    except ValidationError as e:
+        return {"success": False, "error": e.message, "suggestion": e.suggestion}
     except Exception as e:
-        return {"success": False, "error": f"解析代码失败: {e}"}
+        return {
+            "success": False,
+            "error": f"解析代码失败: {e}",
+            "suggestion": "确保代码包含有效的 module 定义",
+        }
 
     if not top_module:
-        return {"success": False, "error": "未找到顶层模块定义"}
+        return {
+            "success": False,
+            "error": "未找到顶层模块定义",
+            "suggestion": "确保代码包含 'module xxx (...)' 定义",
+        }
 
     # 分离时钟、复位和其他信号
     clk_name = None

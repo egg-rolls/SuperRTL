@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from ..utils import extract_top_module, run_command
+from ..validation import ValidationError, validate_code, validate_target, validate_top_module
 
 # 目标工艺库对应的综合命令
 _TARGET_SYNTH = {
@@ -29,13 +30,18 @@ async def synthesize_verilog(code: str, top_module: str = "", target: str = "gen
     Returns:
         综合结果字典
     """
-    top_module = top_module or extract_top_module(code)
     start_time = time.perf_counter()
 
-    # 根据 target 选择综合命令
-    synth_cmd = _TARGET_SYNTH.get(target, "synth")
-
     try:
+        # 输入验证
+        validate_code(code, "code")
+        target = validate_target(target)
+        top_module = top_module or extract_top_module(code)
+        if top_module:
+            top_module = validate_top_module(top_module)
+
+        synth_cmd = _TARGET_SYNTH.get(target, "synth")
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -58,7 +64,7 @@ stat
             script_file.write_text(synth_script, encoding="utf-8")
 
             # 执行综合
-            result = run_command(["yosys", "-s", str(script_file)], timeout=60)
+            result = run_command(["yosys", "-s", str(script_file)], timeout=120)
 
             duration = time.perf_counter() - start_time
 
@@ -74,13 +80,20 @@ stat
                 "errors": result.stderr.splitlines() if result.returncode != 0 else [],
             }
 
+    except ValidationError as e:
+        return {"success": False, "error": e.message, "suggestion": e.suggestion}
     except FileNotFoundError:
         return {
             "success": False,
-            "error": "Yosys 未安装。请运行: superrtl setup",
+            "error": "Yosys 未安装",
+            "suggestion": "运行 superrtl setup 安装 EDA 工具",
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "error": "综合超时 (>60s)"}
+        return {
+            "success": False,
+            "error": "综合超时 (>120s)",
+            "suggestion": "检查代码是否有过大的组合逻辑或循环依赖",
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
