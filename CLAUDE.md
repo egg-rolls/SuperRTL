@@ -10,6 +10,13 @@ SuperRTL is a Python MCP/CLI client that wraps Verilog EDA toolchains (Icarus Ve
 - **Auto-install**: EDA tools are automatically downloaded on first run
 - **Project management**: `.superrtl.yaml` configuration, dependency resolution
 
+## 能力边界
+
+**SuperRTL 负责：** RTL 代码生成、仿真验证、项目管理
+**不做：** 约束文件生成 (XDC)、Bitstream 生成、布局布线
+
+详见 `docs/BOUNDARIES.md`
+
 ## Quick Start
 
 ```bash
