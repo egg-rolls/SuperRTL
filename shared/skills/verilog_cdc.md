@@ -1,31 +1,40 @@
-# Verilog Clock Domain Crossing (CDC) Design Skill
+---
+name: "verilog-cdc"
+version: "1.0.0"
+description: "CDC 跨时钟域设计 - 同步器、握手协议、异步FIFO"
+author: "SuperRTL Team"
+tags: ["cdc", "clock-domain", "synchronizer", "metastability"]
+triggers: ["cdc", "clock domain", "crossing", "synchronizer", "跨时钟域", "时钟域交叉"]
+---
 
-## 触发条件
-- 用户请求处理跨时钟域问题
-- 多时钟设计、时钟域交叉
-- 关键词：CDC, clock domain, crossing, synchronizer, metastability
+# CDC 跨时钟域设计
+
+## 概述
+
+Clock Domain Crossing (CDC) 是多时钟域设计中的关键挑战。不当的 CDC 设计会导致亚稳态、数据错误和系统不稳定。
 
 ## 设计要点
 
-### 1. CDC类型
+### 1. CDC 类型选择
 | 类型 | 方法 | 适用场景 |
 |-----|------|---------|
-| 单bit控制信号 | 2级同步器 | 使能、复位、标志位 |
-| 多bit控制信号 | 握手协议 | 命令、状态 |
-| 多bit数据 | 异步FIFO | 数据流传输 |
+| 单 bit 控制信号 | 2 级同步器 | 使能、复位、标志位 |
+| 多 bit 控制信号 | 握手协议 | 命令、状态 |
+| 多 bit 数据 | 异步 FIFO | 数据流传输 |
 
-### 2. 亚稳态
+### 2. 亚稳态处理
 - 触发器输出在时钟采样边沿不确定
-- 解决方案：2级或多级同步器
+- 解决方案：2 级或多级同步器
+- MTBF (平均故障间隔时间) 需满足系统要求
 
 ### 3. 同步器规则
 - 目标域时钟驱动
 - 组合逻辑输出不能直接跨域
-- 需要2个目标时钟周期稳定
+- 需要 2 个目标时钟周期稳定
 
 ## 代码模板
 
-### 2级同步器 (单bit)
+### 2 级同步器 (单 bit)
 ```verilog
 module synchronizer_2ff #(
     parameter WIDTH = 1
@@ -37,7 +46,7 @@ module synchronizer_2ff #(
 );
     reg [WIDTH-1:0] sync1;
     reg [WIDTH-1:0] sync2;
-    
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             sync1 <= {WIDTH{1'b0}};
@@ -47,7 +56,7 @@ module synchronizer_2ff #(
             sync2 <= sync1;
         end
     end
-    
+
     assign data_out = sync2;
 endmodule
 ```
@@ -63,9 +72,8 @@ module pulse_synchronizer (
     output     dst_pulse
 );
     reg src_level;
-    reg dst_level;
     reg [2:0] sync_reg;
-    
+
     // 源域：脉冲转电平
     always @(posedge src_clk or negedge src_rst_n) begin
         if (!src_rst_n)
@@ -73,7 +81,7 @@ module pulse_synchronizer (
         else if (src_pulse)
             src_level <= ~src_level;
     end
-    
+
     // 同步到目标域
     always @(posedge dst_clk or negedge dst_rst_n) begin
         if (!dst_rst_n)
@@ -81,13 +89,13 @@ module pulse_synchronizer (
         else
             sync_reg <= {sync_reg[1:0], src_level};
     end
-    
+
     // 目标域：电平转脉冲
     assign dst_pulse = sync_reg[2] ^ sync_reg[1];
 endmodule
 ```
 
-### 握手协议 (多bit控制)
+### 握手协议 (多 bit 控制)
 ```verilog
 module handshake_cdc #(
     parameter DATA_WIDTH = 8
@@ -97,18 +105,17 @@ module handshake_cdc #(
     input                  src_valid,
     input  [DATA_WIDTH-1:0] src_data,
     output                 src_ready,
-    
+
     input                  dst_clk,
     input                  dst_rst_n,
     output                 dst_valid,
     output [DATA_WIDTH-1:0] dst_data,
     input                  dst_ready
 );
-    // 握手信号跨域
     reg src_req, dst_ack;
     reg src_req_sync1, src_req_sync2;
     reg dst_ack_sync1, dst_ack_sync2;
-    
+
     // 同步
     always @(posedge src_clk or negedge src_rst_n) begin
         if (!src_rst_n) begin
@@ -119,7 +126,7 @@ module handshake_cdc #(
             src_req_sync2 <= src_req_sync1;
         end
     end
-    
+
     always @(posedge dst_clk or negedge dst_rst_n) begin
         if (!dst_rst_n) begin
             dst_ack_sync1 <= 1'b0;
@@ -129,7 +136,7 @@ module handshake_cdc #(
             dst_ack_sync2 <= dst_ack_sync1;
         end
     end
-    
+
     // 源域控制
     assign src_ready = ~src_req | dst_ack_sync2;
     always @(posedge src_clk or negedge src_rst_n) begin
@@ -140,7 +147,7 @@ module handshake_cdc #(
         else if (dst_ack_sync2)
             src_req <= 1'b0;
     end
-    
+
     // 目标域控制
     reg [DATA_WIDTH-1:0] dst_data_reg;
     assign dst_valid = src_req_sync2 && ~dst_ack;
@@ -161,26 +168,25 @@ module handshake_cdc #(
 endmodule
 ```
 
-### 多bit数据同步 (Gray编码)
+### 多 bit 数据同步 (Gray 编码)
 ```verilog
 module bin2gray_cdc #(
     parameter WIDTH = 4
 )(
-    input      src_clk,
-    input      src_rst_n,
+    input              src_clk,
+    input              src_rst_n,
     input  [WIDTH-1:0] bin_data,
-    
-    input      dst_clk,
-    input      dst_rst_n,
+    input              dst_clk,
+    input              dst_rst_n,
     output [WIDTH-1:0] gray_out
 );
     // 二进制转格雷码
     wire [WIDTH-1:0] gray_data;
     assign gray_data = (bin_data >> 1) ^ bin_data;
-    
+
     // 同步到目标域
     reg [WIDTH-1:0] sync1, sync2;
-    
+
     always @(posedge dst_clk or negedge dst_rst_n) begin
         if (!dst_rst_n) begin
             sync1 <= 0;
@@ -190,7 +196,7 @@ module bin2gray_cdc #(
             sync2 <= sync1;
         end
     end
-    
+
     assign gray_out = sync2;
 endmodule
 ```
@@ -200,14 +206,15 @@ endmodule
 | 错误 | 后果 | 解决方案 |
 |-----|------|---------|
 | 组合逻辑直接跨域 | 亚稳态、数据错误 | 加寄存器 |
-| 单bit用同步FIFO | 资源浪费 | 用2级同步器 |
-| 多bit直接同步 | 数据错位 | 用握手或FIFO |
+| 单 bit 用同步 FIFO | 资源浪费 | 用 2 级同步器 |
+| 多 bit 直接同步 | 数据错位 | 用握手或 FIFO |
 | 异步信号无同步 | 亚稳态 | 必须同步 |
 
-## CDC检查清单
+## 验证检查清单
+
 - [ ] 所有跨时钟域信号都有同步器
-- [ ] 单bit用2级同步器
-- [ ] 多bit数据用FIFO
-- [ ] 多bit控制用握手协议
+- [ ] 单 bit 用 2 级同步器
+- [ ] 多 bit 数据用 FIFO
+- [ ] 多 bit 控制用握手协议
 - [ ] 无组合逻辑直接跨域
 - [ ] 异步复位有同步

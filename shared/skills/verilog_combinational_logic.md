@@ -1,9 +1,17 @@
-# Verilog Combinational Logic Design Skill
+---
+name: "verilog-combinational-logic"
+version: "1.0.0"
+description: "组合逻辑设计 - 译码器、多路选择器、编码器、比较器"
+author: "SuperRTL Team"
+tags: ["combinational", "decoder", "mux", "encoder", "comparator"]
+triggers: ["combinational", "decoder", "mux", "encoder", "组合逻辑", "译码器", "多路选择器"]
+---
 
-## 触发条件
-- 用户请求设计组合逻辑
-- 包含译码器、多路选择器、编码器、比较器等
-- 关键词：decoder, multiplexer, encoder, comparator, combinational
+# 组合逻辑设计
+
+## 概述
+
+组合逻辑是数字电路的基础，输出仅取决于当前输入，不包含记忆元件。常见模块包括译码器、多路选择器、编码器、比较器等。
 
 ## 设计要点
 
@@ -15,10 +23,10 @@
 
 ### 2. 敏感列表
 - 组合逻辑必须包含所有输入信号
-- 使用 `*` 或 `*` 自动捕获
+- 使用 `*` 自动捕获
 - 禁止不完整的敏感列表
 
-### 3. 避免Latch
+### 3. 避免 Latch
 - 所有 if/case 必须覆盖所有情况
 - default 分支必须赋值
 - 避免遗漏信号赋值
@@ -32,7 +40,7 @@ module mux_4to1 #(
 )(
     input  [WIDTH-1:0] d0, d1, d2, d3,
     input  [1:0]       sel,
-    output [WIDTH-1:0] y
+    output reg [WIDTH-1:0] y
 );
     always @(*) begin
         case (sel)
@@ -40,7 +48,7 @@ module mux_4to1 #(
             2'b01:   y = d1;
             2'b10:   y = d2;
             2'b11:   y = d3;
-            default: y = {WIDTH{1'b0}};  // 必须
+            default: y = {WIDTH{1'b0}};
         endcase
     end
 endmodule
@@ -49,9 +57,9 @@ endmodule
 ### 译码器 (Decoder)
 ```verilog
 module decoder_3to8 (
-    input  [2:0]  in,
-    input         en,
-    output [7:0] out
+    input  [2:0] in,
+    input        en,
+    output reg [7:0] out
 );
     always @(*) begin
         if (!en) begin
@@ -73,13 +81,42 @@ module decoder_3to8 (
 endmodule
 ```
 
+### 编码器 (Encoder)
+```verilog
+module encoder_8to3 (
+    input  [7:0] in,
+    output reg [2:0] out,
+    output reg       valid
+);
+    always @(*) begin
+        valid = 1'b1;
+        casez (in)
+            8'b1???????: out = 3'b111;
+            8'b01??????: out = 3'b110;
+            8'b001?????: out = 3'b101;
+            8'b0001????: out = 3'b100;
+            8'b00001???: out = 3'b011;
+            8'b000001??: out = 3'b010;
+            8'b0000001?: out = 3'b001;
+            8'b00000001: out = 3'b000;
+            default: begin
+                out = 3'b000;
+                valid = 1'b0;
+            end
+        endcase
+    end
+endmodule
+```
+
 ### 比较器 (Comparator)
 ```verilog
-module comparator (
-    input  [7:0] a, b,
-    output       eq,
-    output       lt,
-    output       gt
+module comparator #(
+    parameter WIDTH = 8
+)(
+    input  [WIDTH-1:0] a, b,
+    output             eq,
+    output             lt,
+    output             gt
 );
     assign eq = (a == b);
     assign lt = (a < b);
@@ -92,11 +129,13 @@ endmodule
 | 错误 | 后果 | 解决方案 |
 |-----|------|---------|
 | 敏感列表不完整 | 仿真与综合不一致 | 使用 `always @(*)` |
-| 忘记default | 产生Latch | 始终添加default |
-| 阻塞/非阻塞混用 | 产生Latch | 组合逻辑用 `=` |
-| 同一个信号多次赋值 | 冲突 | 一个always一个信号 |
+| 忘记 default | 产生 Latch | 始终添加 default |
+| 阻塞/非阻塞混用 | 产生 Latch | 组合逻辑用 `=` |
+| 同一个信号多次赋值 | 冲突 | 一个 always 一个信号 |
 
-## 验证要点
-1. 所有输入变化时输出立即变化
-2. 无毛刺
-3. case覆盖完整
+## 验证检查清单
+
+- [ ] 所有输入变化时输出立即变化
+- [ ] 无毛刺
+- [ ] case 覆盖完整
+- [ ] 无 Latch 生成

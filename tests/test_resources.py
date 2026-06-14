@@ -21,26 +21,43 @@ class TestSkills:
         assert "skills" in data
         assert "count" in data
         assert isinstance(data["skills"], list)
+        assert data["count"] > 0
+
+        # 每个 skill 应该包含元数据
+        skill = data["skills"][0]
+        assert "name" in skill
+        assert "display_name" in skill
+        assert "version" in skill
+        assert "description" in skill
+        assert "tags" in skill
+
         # 应该有 fsm 和 fifo
-        assert "fsm" in data["skills"]
-        assert "fifo" in data["skills"]
+        display_names = [s["display_name"] for s in data["skills"]]
+        assert "fsm" in display_names
+        assert "fifo" in display_names
 
     @pytest.mark.asyncio
     async def test_get_skill_fsm(self):
         """测试获取 fsm skill"""
         result = await get_skill("fsm")
+        data = json.loads(result)
 
-        # 应该返回 markdown 内容
-        assert "FSM" in result or "状态机" in result
-        assert "always" in result  # 应该包含代码示例
+        # 应该返回结构化内容
+        assert "name" in data
+        assert "version" in data
+        assert "content" in data
+        assert "FSM" in data["content"] or "状态机" in data["content"]
+        assert "always" in data["content"]  # 应该包含代码示例
 
     @pytest.mark.asyncio
     async def test_get_skill_fifo(self):
         """测试获取 fifo skill"""
         result = await get_skill("fifo")
+        data = json.loads(result)
 
-        assert "FIFO" in result
-        assert "module" in result
+        assert "content" in data
+        assert "FIFO" in data["content"]
+        assert "module" in data["content"]
 
     @pytest.mark.asyncio
     async def test_get_skill_not_found(self):

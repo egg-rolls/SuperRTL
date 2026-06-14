@@ -185,11 +185,13 @@ async def list_resources() -> list[types.Resource]:
     # Skills
     skills_data = json.loads(await list_skills())
     for skill in skills_data.get("skills", []):
+        skill_name = skill.get("display_name", skill.get("name", ""))
+        description = skill.get("description", f"Verilog 设计模式: {skill_name}")
         resources.append(
             types.Resource(
-                uri=f"skills://{skill}",
-                name=f"Skill: {skill}",
-                description=f"Verilog 设计模式: {skill}",
+                uri=f"skills://{skill_name}",
+                name=f"Skill: {skill_name}",
+                description=description,
                 mimeType="text/markdown",
             )
         )

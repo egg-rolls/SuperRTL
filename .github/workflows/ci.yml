@@ -34,6 +34,9 @@ jobs:
         ruff check src/ tests/
         ruff format --check src/ tests/
 
+    - name: Validate skills
+      run: python scripts/validate_skills.py
+
     - name: Run tests
       run: |
         pytest tests/ -v --cov=superrtl --cov-report=xml

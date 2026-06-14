@@ -3,11 +3,13 @@ SuperRTL CLI 命令行工具
 """
 
 import asyncio
+import json
 from pathlib import Path
 
 import click
 from rich.console import Console
 from rich.syntax import Syntax
+from rich.table import Table
 
 from . import __version__
 
@@ -19,6 +21,75 @@ console = Console()
 def main():
     """SuperRTL - Verilog EDA 工具的 MCP/CLI 客户端"""
     pass
+
+
+# ============ Skills 命令组 ============
+
+
+@main.group()
+def skills():
+    """管理 Verilog 设计模式 Skills"""
+    pass
+
+
+@skills.command("list")
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def skills_list(as_json: bool):
+    """列出所有可用的 Skills"""
+    from .resources import list_skills
+
+    result = asyncio.run(list_skills())
+    data = json.loads(result)
+
+    if as_json:
+        console.print(result)
+        return
+
+    table = Table(title="Available Skills")
+    table.add_column("Name", style="cyan")
+    table.add_column("Version", style="green")
+    table.add_column("Description")
+    table.add_column("Tags", style="dim")
+
+    for skill in data.get("skills", []):
+        tags = ", ".join(skill.get("tags", []))
+        table.add_row(
+            skill.get("display_name", skill.get("name", "")),
+            skill.get("version", "1.0.0"),
+            skill.get("description", ""),
+            tags,
+        )
+
+    console.print(table)
+    console.print(f"\nTotal: {data.get('count', 0)} skills")
+
+
+@skills.command("show")
+@click.argument("name")
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def skills_show(name: str, as_json: bool):
+    """显示指定 Skill 的详细内容"""
+    from .resources import get_skill
+
+    result = asyncio.run(get_skill(name))
+    data = json.loads(result)
+
+    if "error" in data:
+        console.print(f"[FAIL] [red]{data['error']}[/red]")
+        if "available" in data:
+            console.print(f"Available skills: {', '.join(data['available'])}")
+        return
+
+    if as_json:
+        console.print(result)
+        return
+
+    console.print(f"[INFO] [blue]{data.get('name', name)}[/blue]")
+    console.print(f"   Version: {data.get('version', '1.0.0')}")
+    console.print(f"   Description: {data.get('description', '')}")
+    console.print(f"   Tags: {', '.join(data.get('tags', []))}")
+    console.print("\n" + "=" * 60 + "\n")
+    console.print(data.get("content", ""))
 
 
 @main.command()
