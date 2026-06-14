@@ -16,13 +16,13 @@ def validate_frontmatter(content: str, filename: str) -> list[str]:
 
     # 检查是否以 --- 开头
     if not content.startswith("---"):
-        errors.append(f"{filename}: 缺少 YAML frontmatter (应以 --- 开头)")
+        errors.append(f"{filename}: Missing YAML frontmatter (should start with ---)")
         return errors
 
     # 匹配 frontmatter 块
     match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
     if not match:
-        errors.append(f"{filename}: frontmatter 格式错误 (未找到结束 ---)")
+        errors.append(f"{filename}: Invalid frontmatter format (missing closing ---)")
         return errors
 
     frontmatter = match.group(1)
@@ -31,21 +31,21 @@ def validate_frontmatter(content: str, filename: str) -> list[str]:
     required_fields = ["name", "version", "description"]
     for field in required_fields:
         if not re.search(rf"^{field}:", frontmatter, re.MULTILINE):
-            errors.append(f"{filename}: 缺少必需字段 '{field}'")
+            errors.append(f"{filename}: Missing required field '{field}'")
 
     # 验证 name 格式
     name_match = re.search(r'^name:\s*["\']?([^"\']+)', frontmatter, re.MULTILINE)
     if name_match:
         name = name_match.group(1).strip()
         if not re.match(r"^[a-z0-9-]+$", name):
-            errors.append(f"{filename}: name '{name}' 格式错误 (应为小写字母、数字、连字符)")
+            errors.append(f"{filename}: Invalid name '{name}' (use lowercase, digits, hyphens)")
 
     # 验证 version 格式
     version_match = re.search(r'^version:\s*["\']?([^"\']+)', frontmatter, re.MULTILINE)
     if version_match:
         version = version_match.group(1).strip()
         if not re.match(r"^\d+\.\d+\.\d+$", version):
-            errors.append(f"{filename}: version '{version}' 格式错误 (应为 x.y.z)")
+            errors.append(f"{filename}: Invalid version '{version}' (use x.y.z format)")
 
     # 验证 tags 格式
     tags_match = re.search(r"^tags:\s*\[(.+)\]", frontmatter, re.MULTILINE)
@@ -53,7 +53,7 @@ def validate_frontmatter(content: str, filename: str) -> list[str]:
         tags_str = tags_match.group(1)
         # 简单验证列表格式
         if not re.match(r'^"[^"]+"(\s*,\s*"[^"]+")*$', tags_str):
-            errors.append(f"{filename}: tags 格式错误 (应为 [\"tag1\", \"tag2\"])")
+            errors.append(f'{filename}: Invalid tags format (use ["tag1", "tag2"])')
 
     return errors
 
@@ -65,7 +65,7 @@ def validate_skill_file(filepath: Path) -> list[str]:
     try:
         content = filepath.read_text(encoding="utf-8")
     except Exception as e:
-        errors.append(f"{filepath.name}: 读取失败: {e}")
+        errors.append(f"{filepath.name}: Read failed: {e}")
         return errors
 
     # 验证 frontmatter
@@ -76,7 +76,7 @@ def validate_skill_file(filepath: Path) -> list[str]:
     if match:
         body = match.group(1).strip()
         if len(body) < 50:
-            errors.append(f"{filepath.name}: 内容过短 ({len(body)} 字符)")
+            errors.append(f"{filepath.name}: Content too short ({len(body)} chars)")
 
     return errors
 
@@ -89,7 +89,7 @@ def main():
     skills_dir = project_root / "shared" / "skills"
 
     if not skills_dir.exists():
-        print(f"错误: skills 目录不存在: {skills_dir}")
+        print(f"ERROR: skills directory not found: {skills_dir}")
         return 1
 
     # 验证所有 .md 文件
@@ -97,10 +97,10 @@ def main():
     skill_files = list(skills_dir.glob("*.md"))
 
     if not skill_files:
-        print("警告: 没有找到 skill 文件")
+        print("WARNING: No skill files found")
         return 0
 
-    print(f"验证 {len(skill_files)} 个 skill 文件...")
+    print(f"Validating {len(skill_files)} skill files...")
 
     for filepath in sorted(skill_files):
         errors = validate_skill_file(filepath)
@@ -108,12 +108,12 @@ def main():
 
     # 输出结果
     if all_errors:
-        print("\n验证失败:")
+        print("\nValidation failed:")
         for error in all_errors:
             print(f"  - {error}")
         return 1
     else:
-        print("所有 skill 文件验证通过!")
+        print("All skill files passed validation!")
         return 0
 
 
