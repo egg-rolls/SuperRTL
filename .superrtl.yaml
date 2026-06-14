@@ -1,0 +1,14 @@
+project:
+  name: superrtl_examples
+  top: counter
+sources:
+- examples/*.v
+testbenches:
+- examples/*_tb.v
+sim:
+  timeout: 30
+  waveform: true
+lint:
+  style: default
+build:
+  target: generic

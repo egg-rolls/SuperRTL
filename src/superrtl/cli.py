@@ -98,6 +98,276 @@ def skills_show(name: str, as_json: bool):
     console.print(data.get("content", ""))
 
 
+# ============ 项目命令 ============
+
+
+@main.command()
+@click.option("--name", "-n", default="my_project", help="项目名称")
+@click.option("--top", "-t", default="", help="顶层模块名")
+def init(name: str, top: str):
+    """初始化项目配置 (.superrtl.yaml)"""
+    from .project import init_project, save_config
+
+    config = init_project(name, top)
+    save_config(config)
+
+    console.print("[OK] [green]项目已初始化[/green]")
+    console.print("   配置文件: .superrtl.yaml")
+    console.print(f"   项目名称: {config['project']['name']}")
+    console.print(f"   源文件模式: {config['sources']}")
+
+
+@main.command()
+@click.option("--top", "-t", default="", help="顶层模块名 (覆盖配置)")
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def build(top: str, as_json: bool):
+    """根据项目配置编译"""
+    from .deps import get_compilation_order
+    from .project import load_config, resolve_sources
+    from .tools import compile_verilog
+
+    config = load_config()
+    top = top or config.get("project", {}).get("top", "")
+
+    files = resolve_sources(config)
+    if not files:
+        console.print("[FAIL] [red]未找到源文件，请检查 .superrtl.yaml 配置[/red]")
+        raise SystemExit(1)
+
+    # 按依赖顺序编译
+    ordered_files = get_compilation_order(files)
+
+    with console.status(f"[bold blue]编译 {len(ordered_files)} 个文件..."):
+        result = asyncio.run(compile_verilog(files=[str(f) for f in ordered_files], top_module=top))
+
+    if as_json:
+        _output_result(result, True)
+        return
+
+    if result.get("success"):
+        console.print(f"[OK] [green]编译成功[/green]: {result.get('top_module')}")
+        console.print(f"   文件数: {result.get('source_files', 1)}")
+        console.print(f"   耗时: {result.get('duration')}s")
+    else:
+        console.print("[FAIL] [red]编译失败[/red]")
+        for error in result.get("errors", []):
+            if isinstance(error, dict):
+                console.print(
+                    f"   {error.get('file', '')}:{error.get('line', '')} {error.get('message', '')}"
+                )
+            else:
+                console.print(f"   {error}")
+
+
+@main.command()
+@click.option("--tb", default="", help="测试平台文件 (覆盖配置)")
+@click.option("--timeout", "-t", default=0, help="超时时间 (秒, 0=使用配置)")
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def test(tb: str, timeout: int, as_json: bool):
+    """根据项目配置运行仿真"""
+    from .deps import get_compilation_order
+    from .project import load_config, resolve_sources, resolve_testbenches
+    from .tools import simulate_verilog
+
+    config = load_config()
+    timeout = timeout or config.get("sim", {}).get("timeout", 30)
+
+    # 获取测试平台
+    if tb:
+        tb_files = [Path(tb)]
+    else:
+        tb_files = resolve_testbenches(config)
+
+    if not tb_files:
+        console.print(
+            "[FAIL] [red]未找到测试平台，请检查 .superrtl.yaml 配置或使用 --tb 指定[/red]"
+        )
+        raise SystemExit(1)
+
+    # 获取设计文件（排除测试平台）
+    design_files = resolve_sources(config)
+    tb_file_set = {f.resolve() for f in tb_files}
+    design_files = [f for f in design_files if f.resolve() not in tb_file_set]
+
+    if not design_files:
+        console.print("[FAIL] [red]未找到设计文件[/red]")
+        raise SystemExit(1)
+
+    ordered_files = get_compilation_order(design_files)
+
+    # 运行每个测试平台
+    all_passed = True
+    for tb_file in tb_files:
+        console.print(f"\n[INFO] [blue]运行测试: {tb_file.name}[/blue]")
+        tb_code = tb_file.read_text(encoding="utf-8")
+
+        with console.status("[bold blue]仿真中..."):
+            result = asyncio.run(
+                simulate_verilog(
+                    testbench=tb_code,
+                    timeout=timeout,
+                    design_file_paths=[str(f) for f in ordered_files],
+                )
+            )
+
+        if as_json:
+            _output_result(result, True)
+            continue
+
+        if result.get("success") and result.get("passed"):
+            console.print(f"[OK] [green]{tb_file.name} 通过[/green] ({result.get('duration')}s)")
+        else:
+            all_passed = False
+            console.print(f"[FAIL] [red]{tb_file.name} 失败[/red]")
+            if result.get("output"):
+                console.print(f"   {result['output'][:200]}")
+
+    if not as_json:
+        if all_passed:
+            console.print("\n[OK] [green]所有测试通过[/green]")
+        else:
+            console.print("\n[FAIL] [red]存在失败的测试[/red]")
+            raise SystemExit(1)
+
+
+@main.command()
+@click.option("--format", "-f", "fmt", default="text", type=click.Choice(["text", "dot", "json"]))
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def graph(fmt: str, as_json: bool):
+    """显示模块依赖图"""
+    from .deps import analyze_project, build_dependency_graph, detect_cycles, find_unused_modules
+    from .project import load_config, resolve_sources
+
+    config = load_config()
+    files = resolve_sources(config)
+
+    if not files:
+        console.print("[FAIL] [red]未找到源文件[/red]")
+        raise SystemExit(1)
+
+    analysis = analyze_project(files)
+    graph_data = build_dependency_graph(analysis)
+
+    if as_json or fmt == "json":
+        import json as json_mod
+
+        output = {
+            "modules": graph_data["module_to_file"],
+            "dependencies": graph_data["dependencies"],
+            "unused": find_unused_modules(analysis),
+            "cycles": detect_cycles(graph_data),
+        }
+        console.print(json_mod.dumps(output, indent=2, ensure_ascii=False))
+        return
+
+    if fmt == "dot":
+        # Graphviz DOT 格式
+        console.print("digraph modules {")
+        console.print("  rankdir=LR;")
+        for mod, filepath in graph_data["module_to_file"].items():
+            console.print(f'  {mod} [label="{mod}\\n{Path(filepath).name}"];')
+        for mod, deps in graph_data["dependencies"].items():
+            for dep in deps:
+                if dep in graph_data["module_to_file"]:
+                    console.print(f"  {mod} -> {dep};")
+        console.print("}")
+        return
+
+    # 文本格式
+    table = Table(title="Module Dependency Graph")
+    table.add_column("Module", style="cyan")
+    table.add_column("File", style="dim")
+    table.add_column("Dependencies", style="green")
+    table.add_column("Status", style="yellow")
+
+    unused = find_unused_modules(analysis)
+    cycles = detect_cycles(graph_data)
+
+    for mod, filepath in graph_data["module_to_file"].items():
+        deps = graph_data["dependencies"].get(mod, [])
+        deps_str = ", ".join(deps) if deps else "-"
+        status = ""
+        if mod in unused:
+            status = "[yellow]unused[/yellow]"
+        if any(mod in c for c in cycles):
+            status = "[red]cycle[/red]"
+        table.add_row(mod, Path(filepath).name, deps_str, status)
+
+    console.print(table)
+
+    if unused:
+        console.print(f"\n[WARN] [yellow]未使用的模块: {', '.join(unused)}[/yellow]")
+    if cycles:
+        console.print("\n[FAIL] [red]检测到循环依赖![/red]")
+        for cycle in cycles:
+            console.print(f"   {' -> '.join(cycle)}")
+
+
+@main.command()
+@click.option("--tb", default="", help="测试平台文件")
+@click.option("--interval", "-i", default=2, help="检查间隔 (秒)")
+def watch(tb: str, interval: int):
+    """监视文件变化，自动编译/测试"""
+    import time as time_mod
+
+    from .project import load_config, resolve_sources
+
+    config = load_config()
+    files = resolve_sources(config)
+
+    if not files:
+        console.print("[FAIL] [red]未找到源文件[/red]")
+        raise SystemExit(1)
+
+    console.print(f"[INFO] [blue]监视 {len(files)} 个文件 (间隔 {interval}s)[/blue]")
+    console.print("[INFO] 按 Ctrl+C 停止\n")
+
+    # 记录文件修改时间
+    file_mtimes = {}
+    for f in files:
+        try:
+            file_mtimes[str(f)] = f.stat().st_mtime
+        except Exception:
+            pass
+
+    def check_changes():
+        changed = []
+        for f in files:
+            try:
+                mtime = f.stat().st_mtime
+                if str(f) in file_mtimes and mtime > file_mtimes[str(f)]:
+                    changed.append(f)
+                file_mtimes[str(f)] = mtime
+            except Exception:
+                pass
+        return changed
+
+    try:
+        while True:
+            time_mod.sleep(interval)
+            changed = check_changes()
+
+            if changed:
+                console.print(f"\n[INFO] [blue]检测到 {len(changed)} 个文件变化[/blue]")
+                for f in changed:
+                    console.print(f"   {f.name}")
+
+                # 自动编译
+                console.print("[INFO] [blue]自动编译...[/blue]")
+                from .tools import compile_verilog
+
+                result = asyncio.run(compile_verilog(files=[str(f) for f in files]))
+                if result.get("success"):
+                    console.print(f"[OK] [green]编译成功[/green] ({result.get('duration')}s)")
+                else:
+                    console.print("[FAIL] [red]编译失败[/red]")
+                    for error in result.get("errors", [])[:3]:
+                        console.print(f"   {error}")
+
+    except KeyboardInterrupt:
+        console.print("\n[INFO] 停止监视")
+
+
 # ============ 工具命令 ============
 
 
