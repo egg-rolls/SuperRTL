@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuperRTL Waveform Viewer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Consolas', 'Monaco', monospace; background: #1e1e1e; color: #d4d4d4; overflow: hidden; height: 100vh; }
+
+/* Header */
+.header { background: #252526; padding: 8px 16px; display: flex; align-items: center; gap: 16px; border-bottom: 1px #3c3c3c solid; }
+.header h1 { font-size: 14px; color: #569cd6; }
+.search-box { background: #3c3c3c; border: 1px #555 solid; color: #d4d4d4; padding: 4px 8px; border-radius: 3px; width: 250px; font-size: 12px; }
+.search-box:focus { outline: none; border-color: #569cd6; }
+.btn { background: #0e639c; color: white; border: none; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+.btn:hover { background: #1177bb; }
+.info { font-size: 11px; color: #888; margin-left: auto; }
+
+/* Main layout */
+.main { display: flex; height: calc(100vh - 40px); }
+
+/* Signal panel */
+.signal-panel { width: 250px; min-width: 200px; background: #252526; border-right: 1px #3c3c3c solid; overflow-y: auto; display: flex; flex-direction: column; }
+.signal-header { padding: 6px 8px; background: #2d2d2d; border-bottom: 1px #3c3c3c solid; font-size: 11px; color: #888; font-weight: bold; }
+.signal-list { flex: 1; overflow-y: auto; }
+.signal-item { padding: 4px 8px; cursor: pointer; font-size: 12px; border-bottom: 1px #2d2d2d solid; display: flex; align-items: center; }
+.signal-item:hover { background: #2a2d2e; }
+.signal-item.selected { background: #094771; }
+.signal-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signal-width { color: #88; font-size: 10px; margin-left: 4px; }
+.signal-indent { display: inline-block; }
+.tree-toggle { cursor: pointer; margin-right: 4px; color: #888; }
+
+/* Waveform panel */
+.waveform-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Time ruler */
+.time-ruler { height: 24px; background: #2d2d2d; border-bottom: 1px #3c3c3c solid; position: relative; overflow: hidden; }
+.time-ruler canvas { display: block; }
+
+/* Waveform area */
+.waveform-area { flex: 1; position: relative; overflow: hidden; }
+.waveform-canvas { display: block; }
+
+/* Cursor */
+.cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: #ff0; pointer-events: none; z-index: 10; }
+.cursor-info { position: absolute; top: 2px; background: #ff0; color: #000; font-size: 10px; padding: 1px 4px; border-radius: 2px; white-space: nowrap; z-index: 11; }
+
+/* Tooltip */
+.tooltip { position: absolute; background: #333; border: 1px #555 solid; color: #d4d4d4; padding: 4px 8px; font-size: 11px; border-radius: 3px; pointer-events: none; z-index: 20; display: none; }
+
+/* Controls */
+.controls { position: absolute; bottom: 8px; right: 8px; display: flex; gap: 4px; z-index: 5; }
+.ctrl-btn { background: #333; color: #d4d4d4; border: 1px #555 solid; width: 28px; height: 28px; border-radius: 3px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+.ctrl-btn:hover { background: #444; }
+
+/* Loading */
+.loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 14px; color: #888; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>SuperRTL Waveform Viewer</h1>
+  <input type="text" class="search-box" id="searchInput" placeholder="Search signals...">
+  <button class="btn" id="fitBtn">Fit</button>
+  <button class="btn" id="resetBtn">Reset</button>
+  <span class="info" id="infoText">Loading...</span>
+</div>
+
+<div class="main">
+  <div class="signal-panel">
+    <div class="signal-header">Signals</div>
+    <div class="signal-list" id="signalList"></div>
+  </div>
+  <div class="waveform-panel">
+    <div class="time-ruler" id="rulerContainer">
+      <canvas id="rulerCanvas"></canvas>
+    </div>
+    <div class="waveform-area" id="waveformArea">
+      <canvas id="waveformCanvas"></canvas>
+      <div class="cursor" id="cursor" style="display:none"></div>
+      <div class="cursor-info" id="cursorInfo" style="display:none"></div>
+      <div class="tooltip" id="tooltip"></div>
+      <div class="controls">
+        <button class="ctrl-btn" id="zoomInBtn" title="Zoom In">+</button>
+        <button class="ctrl-btn" id="zoomOutBtn" title="Zoom Out">-</button>
+        <button class="ctrl-btn" id="zoomFitBtn" title="Fit All">⊡</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="loading" id="loading">Loading waveform data...</div>
+
+<script>
+// ===== Waveform Viewer =====
+const SIGNAL_HEIGHT = 28;
+const SIGNAL_PADDING = 4;
+const RULER_HEIGHT = 24;
+
+let waveformData = null;
+let displaySignals = [];
+let viewStart = 0;
+let viewEnd = 0;
+let pixelsPerTime = 1;
+let scrollX = 0;
+let scrollTop = 0;
+let cursorTime = -1;
+let isDragging = false;
+let dragStartX = 0;
+let dragStartScrollX = 0;
+
+// DOM elements
+const rulerCanvas = document.getElementById('rulerCanvas');
+const waveformCanvas = document.getElementById('waveformCanvas');
+const rulerCtx = rulerCanvas.getContext('2d');
+const waveCtx = waveformCanvas.getContext('2d');
+const signalList = document.getElementById('signalList');
+const searchInput = document.getElementById('searchInput');
+const infoText = document.getElementById('infoText');
+const loadingEl = document.getElementById('loading');
+const cursorEl = document.getElementById('cursor');
+const cursorInfoEl = document.getElementById('cursorInfo');
+const tooltipEl = document.getElementById('tooltip');
+
+// ===== Data Loading =====
+async function loadData() {
+  try {
+    const resp = await fetch('/api/data');
+    waveformData = await resp.json();
+    if (!waveformData.success) {
+      loadingEl.textContent = 'Error: ' + (waveformData.error || 'Failed to load');
+      return;
+    }
+    loadingEl.style.display = 'none';
+    initDisplay();
+    render();
+  } catch (e) {
+    loadingEl.textContent = 'Failed to connect to server';
+  }
+}
+
+// ===== Initialize Display =====
+function initDisplay() {
+  // Build display signals list
+  displaySignals = [];
+  for (const [name, data] of Object.entries(waveformData.signals)) {
+    displaySignals.push({ name, ...data, visible: true });
+  }
+
+  // Sort: single bit first, then buses
+  displaySignals.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Set time range
+  viewStart = waveformData.time_range.start;
+  viewEnd = waveformData.time_range.end;
+  if (viewEnd <= viewStart) viewEnd = viewStart + 1000;
+
+  updateSignalList();
+  resizeCanvas();
+  fitView();
+}
+
+// ===== Signal List =====
+function updateSignalList() {
+  const filter = searchInput.value.toLowerCase();
+  signalList.innerHTML = '';
+
+  for (let i = 0; i < displaySignals.length; i++) {
+    const sig = displaySignals[i];
+    if (filter && !sig.name.toLowerCase().includes(filter)) continue;
+
+    const div = document.createElement('div');
+    div.className = 'signal-item' + (sig.visible ? ' selected' : '');
+    div.innerHTML = `
+      <span class="signal-name">${escapeHtml(sig.name)}</span>
+      <span class="signal-width">[${sig.width-1}:0]</span>
+    `;
+    div.addEventListener('click', () => {
+      sig.visible = !sig.visible;
+      div.className = 'signal-item' + (sig.visible ? ' selected' : '');
+      render();
+    });
+    signalList.appendChild(div);
+  }
+
+  const visibleCount = displaySignals.filter(s => s.visible).length;
+  infoText.textContent = `${visibleCount}/${displaySignals.length} signals | Time: ${viewStart} - ${viewEnd}`;
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ===== Canvas Resize =====
+function resizeCanvas() {
+  const area = document.getElementById('waveformArea');
+  const w = area.clientWidth;
+  const h = area.clientHeight;
+
+  waveformCanvas.width = w;
+  waveformCanvas.height = h;
+  waveformCanvas.style.width = w + 'px';
+  waveformCanvas.style.height = h + 'px';
+
+  rulerCanvas.width = w;
+  rulerCanvas.height = RULER_HEIGHT;
+  rulerCanvas.style.width = w + 'px';
+}
+
+// ===== Rendering =====
+function render() {
+  renderRuler();
+  renderWaveforms();
+}
+
+function renderRuler() {
+  const w = rulerCanvas.width;
+  const ctx = rulerCtx;
+
+  ctx.clearRect(0, 0, w, RULER_HEIGHT);
+  ctx.fillStyle = '#2d2d2d';
+  ctx.fillRect(0, 0, w, RULER_HEIGHT);
+
+  ctx.strokeStyle = '#555';
+  ctx.fillStyle = '#999';
+  ctx.font = '10px Consolas, monospace';
+  ctx.textAlign = 'center';
+
+  const timeRange = viewEnd - viewStart;
+  const pixelsPerTime = w / timeRange;
+
+  // Calculate tick interval
+  let tickInterval = Math.pow(10, Math.floor(Math.log10(timeRange / 10)));
+  if (timeRange / tickInterval > 20) tickInterval *= 2;
+  if (timeRange / tickInterval < 5) tickInterval /= 2;
+
+  const startTime = Math.ceil(viewStart / tickInterval) * tickInterval;
+
+  for (let t = startTime; t <= viewEnd; t += tickInterval) {
+    const x = (t - viewStart) * pixelsPerTime;
+    ctx.beginPath();
+    ctx.moveTo(x, RULER_HEIGHT - 6);
+    ctx.lineTo(x, RULER_HEIGHT);
+    ctx.stroke();
+    ctx.fillText(formatTime(t), x, RULER_HEIGHT - 8);
+  }
+}
+
+function formatTime(t) {
+  if (t >= 1000000000) return (t / 1000000000).toFixed(1) + 's';
+  if (t >= 1000000) return (t / 1000000).toFixed(1) + 'ms';
+  if (t >= 1000) return (t / 1000).toFixed(1) + 'us';
+  return t + 'ns';
+}
+
+function renderWaveforms() {
+  const w = waveformCanvas.width;
+  const h = waveformCanvas.height;
+  const ctx = waveCtx;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#1e1e1e';
+  ctx.fillRect(0, 0, w, h);
+
+  const timeRange = viewEnd - viewStart;
+  pixelsPerTime = w / timeRange;
+
+  let y = -scrollTop;
+
+  for (const sig of displaySignals) {
+    if (!sig.visible) continue;
+    if (y + SIGNAL_HEIGHT < 0) { y += SIGNAL_HEIGHT; continue; }
+    if (y > h) break;
+
+    // Background
+    ctx.fillStyle = y % (SIGNAL_HEIGHT * 2) < SIGNAL_HEIGHT ? '#1e1e1e' : '#222222';
+    ctx.fillRect(0, y, w, SIGNAL_HEIGHT);
+
+    // Separator line
+    ctx.strokeStyle = '#2d2d2d';
+    ctx.beginPath();
+    ctx.moveTo(0, y + SIGNAL_HEIGHT);
+    ctx.lineTo(w, y + SIGNAL_HEIGHT);
+    ctx.stroke();
+
+    // Draw waveform
+    if (sig.width === 1) {
+      drawDigitalWaveform(ctx, sig, y, w);
+    } else {
+      drawBusWaveform(ctx, sig, y, w);
+    }
+
+    y += SIGNAL_HEIGHT;
+  }
+}
+
+function drawDigitalWaveform(ctx, sig, y, w) {
+  const values = sig.values;
+  if (!values || values.length === 0) return;
+
+  const midY = y + SIGNAL_HEIGHT / 2;
+  const highY = y + SIGNAL_PADDING + 2;
+  const lowY = y + SIGNAL_HEIGHT - SIGNAL_PADDING - 2;
+
+  ctx.strokeStyle = '#4ec9b0';
+  ctx.fillStyle = '#4ec9b0';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+
+  let prevX = 0;
+  let prevVal = null;
+
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    const x = (v.time - viewStart) * pixelsPerTime;
+
+    if (x > w + 10) break;
+    if (x < -10) { prevVal = v.value; prevX = x; continue; }
+
+    const val = v.value;
+
+    if (prevVal !== null && prevX < w) {
+      // Draw transition
+      if (val === '1' || val === 'H') {
+        ctx.lineTo(prevX, lowY);
+        ctx.lineTo(x, lowY);
+        ctx.lineTo(x, highY);
+      } else if (val === '0' || val === 'L') {
+        ctx.lineTo(prevX, highY);
+        ctx.lineTo(x, highY);
+        ctx.lineTo(x, lowY);
+      } else {
+        ctx.lineTo(prevX, midY);
+        ctx.lineTo(x, midY);
+      }
+    } else {
+      ctx.moveTo(x, (val === '1' || val === 'H') ? highY : lowY);
+    }
+
+    prevVal = val;
+    prevX = x;
+  }
+
+  ctx.stroke();
+  ctx.lineWidth = 1;
+}
+
+function drawBusWaveform(ctx, sig, y, w) {
+  const values = sig.values;
+  if (!values || values.length === 0) return;
+
+  const topY = y + SIGNAL_PADDING;
+  const botY = y + SIGNAL_HEIGHT - SIGNAL_PADDING;
+  const midY = y + SIGNAL_HEIGHT / 2;
+
+  ctx.fillStyle = 'rgba(78, 201, 176, 0.15)';
+  ctx.strokeStyle = '#4ec9b0';
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    const x = (v.time - viewStart) * pixelsPerTime;
+
+    if (x > w + 10) break;
+    if (x < -10) continue;
+
+    const nextX = i < values.length - 1
+      ? (values[i+1].time - viewStart) * pixelsPerTime
+      : w;
+
+    // Draw bus band
+    ctx.fillStyle = 'rgba(78, 201, 176, 0.1)';
+    ctx.beginPath();
+    ctx.moveTo(x, topY);
+    ctx.lineTo(Math.min(nextX, w), topY);
+    ctx.lineTo(Math.min(nextX, w), botY);
+    ctx.lineTo(x, botY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw edges
+    ctx.strokeStyle = '#4ec9b0';
+    ctx.beginPath();
+    ctx.moveTo(x, topY);
+    ctx.lineTo(x, botY);
+    ctx.stroke();
+
+    // Draw value text
+    const displayVal = formatBusValue(v.value);
+    if (nextX - x > 20) {
+      ctx.fillStyle = '#4ec9b0';
+      ctx.font = '10px Consolas, monospace';
+      ctx.textAlign = 'center';
+      const textX = (x + Math.min(nextX, w)) / 2;
+      ctx.fillText(displayVal, textX, midY + 4);
+    }
+  }
+}
+
+function formatBusValue(val) {
+  if (!val) return '?';
+  // Binary to hex
+  if (/^[01xzXZ]+$/.test(val)) {
+    // Pad to multiple of 4
+    const padded = val.padStart(Math.ceil(val.length / 4) * 4, '0');
+    let hex = '';
+    for (let i = 0; i < padded.length; i += 4) {
+      const nibble = padded.substr(i, 4);
+      if (/^[01]+$/.test(nibble)) {
+        hex += parseInt(nibble, 2).toString(16).toUpperCase();
+      } else {
+        hex += 'X';
+      }
+    }
+    return '0x' + hex;
+  }
+  return val;
+}
+
+// ===== View Control =====
+function fitView() {
+  viewStart = waveformData.time_range.start;
+  viewEnd = waveformData.time_range.end;
+  scrollX = 0;
+  render();
+  updateSignalList();
+}
+
+function zoomIn() {
+  const center = (viewStart + viewEnd) / 2;
+  const range = (viewEnd - viewStart) / 2;
+  viewStart = center - range * 0.7;
+  viewEnd = center + range * 0.7;
+  render();
+  updateSignalList();
+}
+
+function zoomOut() {
+  const center = (viewStart + viewEnd) / 2;
+  const range = (viewEnd - viewStart) / 2;
+  viewStart = center - range * 1.4;
+  viewEnd = center + range * 1.4;
+  render();
+  updateSignalList();
+}
+
+// ===== Event Handlers =====
+const waveformArea = document.getElementById('waveformArea');
+const rulerContainer = document.getElementById('rulerContainer');
+
+// Mouse wheel zoom
+waveformArea.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = waveformCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseRatio = mouseX / rect.width;
+  const mouseTime = viewStart + (viewEnd - viewStart) * mouseRatio;
+
+  const factor = e.deltaY > 0 ? 1.1 : 0.9;
+  viewStart = mouseTime - (mouseTime - viewStart) * factor;
+  viewEnd = mouseTime + (viewEnd - mouseTime) * factor;
+
+  render();
+  updateSignalList();
+}, { passive: false });
+
+// Mouse drag
+waveformArea.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartScrollX = scrollX;
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (isDragging) {
+    const dx = e.clientX - dragStartX;
+    const timeRange = viewEnd - viewStart;
+    const timeShift = dx / pixelsPerTime;
+    viewStart -= timeShift;
+    viewEnd -= timeShift;
+    dragStartX = e.clientX;
+    render();
+    updateSignalList();
+  }
+
+  // Cursor tracking
+  const rect = waveformCanvas.getBoundingClientRect();
+  if (e.clientX >= rect.left && e.clientX <= rect.right &&
+      e.clientY >= rect.top && e.clientY <= rect.bottom) {
+    const x = e.clientX - rect.left;
+    cursorTime = viewStart + (viewEnd - viewStart) * (x / rect.width);
+
+    cursorEl.style.display = 'block';
+    cursorEl.style.left = (rect.left + x) + 'px';
+    cursorInfoEl.style.display = 'block';
+    cursorInfoEl.style.left = (rect.left + x + 8) + 'px';
+    cursorInfoEl.textContent = formatTime(cursorTime);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  isDragging = false;
+});
+
+// Vertical scroll for signal list
+signalList.addEventListener('scroll', () => {
+  scrollTop = signalList.scrollTop;
+  renderWaveforms();
+});
+
+// Search
+searchInput.addEventListener('input', () => {
+  updateSignalList();
+  render();
+});
+
+// Buttons
+document.getElementById('fitBtn').addEventListener('click', fitView);
+document.getElementById('resetBtn').addEventListener('click', fitView);
+document.getElementById('zoomInBtn').addEventListener('click', zoomIn);
+document.getElementById('zoomOutBtn').addEventListener('click', zoomOut);
+document.getElementById('zoomFitBtn').addEventListener('click', fitView);
+
+// Resize
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  render();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === '+' || e.key === '=') zoomIn();
+  if (e.key === '-') zoomOut();
+  if (e.key === '0') fitView();
+  if (e.key === 'ArrowLeft') {
+    const shift = (viewEnd - viewStart) * 0.1;
+    viewStart -= shift;
+    viewEnd -= shift;
+    render();
+    updateSignalList();
+  }
+  if (e.key === 'ArrowRight') {
+    const shift = (viewEnd - viewStart) * 0.1;
+    viewStart += shift;
+    viewEnd += shift;
+    render();
+    updateSignalList();
+  }
+});
+
+// ===== Start =====
+loadData();
+</script>
+</body>
+</html>

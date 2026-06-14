@@ -256,12 +256,18 @@ def testbench(file: str, style: str, cases: int, output: str, as_json: bool):
         console.print(f"[FAIL] [red]生成失败[/red]: {result.get('error')}")
 
 
-@main.command()
+@main.group()
+def waveform():
+    """波形分析与查看"""
+    pass
+
+
+@waveform.command("analyze")
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--signals", "-s", multiple=True, help="要分析的信号")
 @click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
-def waveform(file: str, signals: tuple, as_json: bool):
-    """分析波形"""
+def waveform_analyze(file: str, signals: tuple, as_json: bool):
+    """分析 VCD 波形文件"""
     from .tools import analyze_waveform
 
     with console.status("[bold blue]分析波形..."):
@@ -280,6 +286,46 @@ def waveform(file: str, signals: tuple, as_json: bool):
             console.print("\n" + result["ascii_waveform"])
     else:
         console.print(f"[FAIL] [red]分析失败[/red]: {result.get('error')}")
+
+
+@waveform.command("view")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--port", "-p", default=0, help="HTTP 端口 (0=自动选择)")
+@click.option("--no-open", is_flag=True, help="不自动打开浏览器")
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def waveform_view(file: str, port: int, no_open: bool, as_json: bool):
+    """启动交互式波形查看器"""
+    from .tools.waveform_server import start_waveform_server
+
+    with console.status("[bold blue]启动波形查看器..."):
+        result = start_waveform_server(
+            vcd_file=file,
+            port=port,
+            auto_open=not no_open,
+        )
+
+    if as_json:
+        _output_result(result, True)
+        return
+
+    if result.get("success"):
+        console.print("[OK] [green]波形查看器已启动[/green]")
+        console.print(f"   URL: {result['url']}")
+        console.print(f"   信号数: {result.get('signal_count', 0)}")
+        time_range = result.get("time_range", {})
+        console.print(f"   时间范围: {time_range.get('start', 0)} - {time_range.get('end', 0)}")
+        console.print("\n   按 Ctrl+C 停止服务")
+
+        try:
+            # 保持主线程运行
+            import time
+
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            console.print("\n[INFO] 服务已停止")
+    else:
+        console.print(f"[FAIL] [red]启动失败[/red]: {result.get('error')}")
 
 
 @main.command("check-tools")
