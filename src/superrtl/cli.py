@@ -789,9 +789,12 @@ def uninstall():
 @main.command()
 def mcp():
     """启动 MCP Server (stdio 模式)"""
+    import sys
+
     from .server import main as server_main
 
-    console.print("[START] [green]启动 SuperRTL MCP Server[/green]")
+    # MCP 协议使用 stdin/stdout 通信，状态信息只能输出到 stderr
+    print("[START] 启动 SuperRTL MCP Server", file=sys.stderr, flush=True)
     server_main()
 
 
