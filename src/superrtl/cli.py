@@ -793,6 +793,19 @@ def mcp():
 
     from .server import main as server_main
 
+    # 检测 stdin 是否连接到终端（非 pipe 模式）
+    if sys.stdin.isatty():
+        print(
+            "错误: MCP Server 需要通过 MCP 客户端调用，不能在终端直接运行。\n"
+            "请在 MCP Host 中配置:\n"
+            "  命令: superrtl\n"
+            "  参数: mcp\n"
+            "  类型: stdio",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise SystemExit(1)
+
     # MCP 协议使用 stdin/stdout 通信，状态信息只能输出到 stderr
     print("[START] 启动 SuperRTL MCP Server", file=sys.stderr, flush=True)
     server_main()
