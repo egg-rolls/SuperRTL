@@ -460,6 +460,13 @@ SKILL_PROMPTS = {
             },
         ],
     },
+    "generate-testbench": {
+        "description": "Testbench 编写助手 - 分析设计语义，指导 AI 编写有意义的测试",
+        "arguments": [
+            {"name": "code", "description": "设计代码", "required": True},
+            {"name": "style", "description": "测试风格 (basic, comprehensive)", "required": False},
+        ],
+    },
 }
 
 
@@ -596,6 +603,27 @@ FIFO 类型: {arguments.get("type", "sync")}
 5. 功耗优化
 6. 编码规范
 7. 潜在的 Bug"""
+
+        elif name == "generate-testbench":
+            prompt_text = f"""你是一个 Verilog 验证专家。请为以下设计编写有意义的 Testbench。
+
+设计代码:
+```
+{arguments.get("code", "")}
+```
+
+测试风格: {arguments.get("style", "basic")}
+
+要求：
+1. 分析设计的功能语义（不只是端口列表）
+2. 编写有意义的测试场景（不是随机值）
+3. 包含自检查断言（assert 或 $display PASS/FAIL）
+4. 覆盖正常路径和边界情况
+5. 时钟/复位/波形输出/超时保护
+
+写完后，将 testbench 保存为文件，然后调用:
+simulate_verilog(design_file_paths=[...], testbench_file=...)
+运行验证。"""
 
         else:
             prompt_text = f"未知 Prompt: {name}"
