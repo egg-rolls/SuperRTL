@@ -8,7 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from ..utils import extract_top_module, run_command
+from ..utils import extract_top_module, normalize_path, run_command
 from ..validation import ValidationError, validate_code, validate_target, validate_top_module
 
 logger = logging.getLogger("superrtl.synthesize")
@@ -21,14 +21,17 @@ _TARGET_SYNTH = {
 }
 
 
-async def synthesize_verilog(code: str, top_module: str = "", target: str = "generic") -> dict:
+async def synthesize_verilog(
+    code: str = None, top_module: str = "", target: str = "generic", file: str = None
+) -> dict:
     """
     使用 Yosys 进行综合检查
 
     Args:
-        code: Verilog 源代码
+        code: Verilog 源代码字符串
         top_module: 顶层模块名
         target: 目标工艺库 (generic, xilinx, ice40)
+        file: Verilog 文件路径（优先于 code）
 
     Returns:
         综合结果字典
@@ -37,6 +40,16 @@ async def synthesize_verilog(code: str, top_module: str = "", target: str = "gen
     logger.debug("synthesize_verilog: top_module=%s target=%s", top_module, target)
 
     try:
+        # 优先从文件读取
+        if file:
+            p = Path(normalize_path(file))
+            if not p.exists():
+                return {"success": False, "error": f"文件不存在: {file}"}
+            code = p.read_text(encoding="utf-8")
+
+        if not code:
+            return {"success": False, "error": "需要提供代码 (code 或 file 参数)"}
+
         # 输入验证
         validate_code(code, "code")
         target = validate_target(target)

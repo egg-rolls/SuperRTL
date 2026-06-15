@@ -74,11 +74,12 @@ TOOLS = [
     ),
     types.Tool(
         name="lint_verilog",
-        description="使用 Verilator 进行 Lint 检查",
+        description="使用 Verilator 进行 Lint 检查。支持代码字符串或文件路径。",
         inputSchema={
             "type": "object",
             "properties": {
                 "code": {"type": "string", "description": "Verilog 源代码"},
+                "file": {"type": "string", "description": "Verilog 文件路径（优先于 code）"},
                 "style": {
                     "type": "string",
                     "description": "检查风格",
@@ -86,7 +87,6 @@ TOOLS = [
                     "default": "default",
                 },
             },
-            "required": ["code"],
         },
     ),
     types.Tool(
@@ -96,6 +96,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "code": {"type": "string", "description": "Verilog 源代码"},
+                "file": {"type": "string", "description": "Verilog 文件路径（优先于 code）"},
                 "top_module": {"type": "string", "description": "顶层模块名", "default": ""},
                 "target": {
                     "type": "string",
@@ -104,7 +105,6 @@ TOOLS = [
                     "default": "generic",
                 },
             },
-            "required": ["code"],
         },
     ),
     types.Tool(
@@ -168,11 +168,12 @@ TOOLS = [
     ),
     types.Tool(
         name="review_verilog",
-        description="审查 Verilog 代码的可综合性、常见陷阱和编码风格",
+        description="审查 Verilog 代码。支持代码字符串或文件路径。",
         inputSchema={
             "type": "object",
             "properties": {
                 "code": {"type": "string", "description": "Verilog 源代码"},
+                "file": {"type": "string", "description": "Verilog 文件路径（优先于 code）"},
                 "checks": {
                     "type": "array",
                     "items": {
@@ -225,12 +226,17 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 design_file_paths=arguments.get("design_file_paths"),
             )
         elif name == "lint_verilog":
-            result = await lint_verilog(arguments["code"], arguments.get("style", "default"))
+            result = await lint_verilog(
+                code=arguments.get("code"),
+                style=arguments.get("style", "default"),
+                file=arguments.get("file"),
+            )
         elif name == "synthesize_verilog":
             result = await synthesize_verilog(
-                arguments["code"],
-                arguments.get("top_module", ""),
-                arguments.get("target", "generic"),
+                code=arguments.get("code"),
+                top_module=arguments.get("top_module", ""),
+                target=arguments.get("target", "generic"),
+                file=arguments.get("file"),
             )
         elif name == "generate_testbench":
             result = await generate_testbench(
@@ -249,8 +255,9 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             )
         elif name == "review_verilog":
             result = await review_verilog(
-                arguments["code"],
+                code=arguments.get("code"),
                 checks=arguments.get("checks"),
+                file=arguments.get("file"),
             )
         else:
             result = {"success": False, "error": f"未知工具: {name}"}

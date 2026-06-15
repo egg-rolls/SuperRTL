@@ -2,6 +2,7 @@
 VCD 波形分析工具
 """
 
+from ..utils import normalize_path
 from ..utils.verilog import parse_vcd
 
 
@@ -21,6 +22,7 @@ async def analyze_waveform(
     """
     # 读取 VCD 内容
     if vcd_file:
+        vcd_file = normalize_path(vcd_file)
         try:
             with open(vcd_file, encoding="utf-8") as f:
                 content = f.read()

@@ -6,23 +6,36 @@ Verilog 代码审查工具
 
 import logging
 import re
+from pathlib import Path
 
+from ..utils import normalize_path
 from ..validation import ValidationError, validate_code
 
 logger = logging.getLogger("superrtl.review")
 
 
-async def review_verilog(code: str, checks: list[str] = None) -> dict:
+async def review_verilog(code: str = None, checks: list[str] = None, file: str = None) -> dict:
     """
     审查 Verilog 代码
 
     Args:
-        code: Verilog 源代码
+        code: Verilog 源代码字符串
         checks: 要执行的检查类别列表 (可选，默认全部)
+        file: Verilog 文件路径（优先于 code）
 
     Returns:
         审查结果字典
     """
+    # 优先从文件读取
+    if file:
+        p = Path(normalize_path(file))
+        if not p.exists():
+            return {"success": False, "error": f"文件不存在: {file}"}
+        code = p.read_text(encoding="utf-8")
+
+    if not code:
+        return {"success": False, "error": "需要提供代码 (code 或 file 参数)"}
+
     try:
         validate_code(code, "code")
     except ValidationError as e:

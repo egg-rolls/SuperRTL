@@ -2,17 +2,56 @@
 工具函数
 """
 
+import re
 import subprocess
 import sys
+from pathlib import Path
 
 from .verilog import extract_ports, extract_top_module, parse_vcd
 
 __all__ = [
     "extract_top_module",
     "extract_ports",
+    "normalize_path",
     "parse_vcd",
     "run_command",
 ]
+
+
+def normalize_path(path_str: str) -> str:
+    """路径归一化：POSIX 风格 → Windows 风格
+
+    处理 /d/code/... → D:\\code\\... 等 Git Bash 风格路径。
+
+    Args:
+        path_str: 原始路径字符串
+
+    Returns:
+        归一化后的路径字符串
+    """
+    if sys.platform != "win32":
+        return path_str
+
+    # /d/code/... → D:\code\...
+    match = re.match(r"^/([a-zA-Z])/(.*)$", path_str)
+    if match:
+        drive = match.group(1).upper()
+        rest = match.group(2).replace("/", "\\")
+        return f"{drive}:\\{rest}"
+
+    return path_str
+
+
+def resolve_path(path_str: str) -> Path:
+    """解析并归一化路径
+
+    Args:
+        path_str: 路径字符串（支持 POSIX 和 Windows 格式）
+
+    Returns:
+        解析后的 Path 对象
+    """
+    return Path(normalize_path(path_str))
 
 
 def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:

@@ -8,7 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from ..utils import extract_top_module, run_command
+from ..utils import extract_top_module, normalize_path, run_command
 from ..validation import ValidationError, validate_code, validate_files_list, validate_top_module
 
 logger = logging.getLogger("superrtl.compile")
@@ -52,7 +52,7 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
             # 多文件模式
             if files:
                 for fp in files:
-                    p = Path(fp)
+                    p = Path(normalize_path(fp))
                     if not p.exists():
                         return {"success": False, "error": f"文件不存在: {fp}"}
                     dest = tmpdir_path / p.name
@@ -60,7 +60,7 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
                     source_files.append(str(dest))
 
                 if not top_module:
-                    first_code = Path(files[0]).read_text(encoding="utf-8")
+                    first_code = Path(normalize_path(files[0])).read_text(encoding="utf-8")
                     top_module = extract_top_module(first_code)
 
             # 单文件模式

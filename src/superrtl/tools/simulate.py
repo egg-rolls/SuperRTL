@@ -9,7 +9,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from ..utils import run_command
+from ..utils import normalize_path, run_command
 from ..validation import ValidationError, validate_code, validate_files_list, validate_timeout
 
 logger = logging.getLogger("superrtl.simulate")
@@ -74,18 +74,25 @@ async def simulate_verilog(
             # 多文件模式：从文件路径读取
             if design_file_paths:
                 for fp in design_file_paths:
-                    p = Path(fp)
+                    p = Path(normalize_path(fp))
                     if not p.exists():
                         return {"success": False, "error": f"文件不存在: {fp}"}
                     dest = tmpdir_path / p.name
                     shutil.copy2(str(p), str(dest))
                     source_files.append(str(dest))
 
-            # 多文件模式：从代码字符串写入
+            # 多文件模式：design_files 自动判断是路径还是代码
             elif design_files:
-                for i, src_code in enumerate(design_files):
-                    dest = tmpdir_path / f"design_{i}.v"
-                    dest.write_text(src_code, encoding="utf-8")
+                for i, item in enumerate(design_files):
+                    p = Path(normalize_path(item))
+                    if p.exists() and p.suffix in (".v", ".sv", ".vh", ".svh"):
+                        # 看起来是存在的文件路径
+                        dest = tmpdir_path / p.name
+                        shutil.copy2(str(p), str(dest))
+                    else:
+                        # 当作代码字符串
+                        dest = tmpdir_path / f"design_{i}.v"
+                        dest.write_text(item, encoding="utf-8")
                     source_files.append(str(dest))
 
             # 单文件模式
@@ -96,7 +103,7 @@ async def simulate_verilog(
 
             # 测试平台：优先使用文件路径，回退到代码字符串
             if testbench_file:
-                tb_path = Path(testbench_file)
+                tb_path = Path(normalize_path(testbench_file))
                 if not tb_path.exists():
                     return {"success": False, "error": f"测试平台文件不存在: {testbench_file}"}
                 dest_tb = tmpdir_path / tb_path.name

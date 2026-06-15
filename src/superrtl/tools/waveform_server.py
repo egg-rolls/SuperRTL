@@ -11,6 +11,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from threading import Thread
 
+from ..utils import normalize_path
 from ..utils.verilog import parse_vcd
 
 
@@ -129,7 +130,7 @@ def start_waveform_server(
     Returns:
         服务信息字典
     """
-    vcd_path = Path(vcd_file)
+    vcd_path = Path(normalize_path(vcd_file))
     if not vcd_path.exists():
         return {"success": False, "error": f"VCD file not found: {vcd_file}"}
 

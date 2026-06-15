@@ -8,19 +8,20 @@ import tempfile
 import time
 from pathlib import Path
 
-from ..utils import run_command
+from ..utils import normalize_path, run_command
 from ..validation import ValidationError, validate_code, validate_timeout
 
 logger = logging.getLogger("superrtl.lint")
 
 
-async def lint_verilog(code: str, style: str = "default") -> dict:
+async def lint_verilog(code: str = None, style: str = "default", file: str = None) -> dict:
     """
     使用 Verilator 进行 Lint 检查
 
     Args:
-        code: Verilog 源代码
+        code: Verilog 源代码字符串
         style: 检查风格 (default, strict, relaxed)
+        file: Verilog 文件路径（优先于 code）
 
     Returns:
         Lint 结果字典
@@ -29,7 +30,16 @@ async def lint_verilog(code: str, style: str = "default") -> dict:
     logger.debug("lint_verilog: style=%s", style)
 
     try:
+        # 优先从文件读取
+        if file:
+            p = Path(normalize_path(file))
+            if not p.exists():
+                return {"success": False, "error": f"文件不存在: {file}"}
+            code = p.read_text(encoding="utf-8")
+
         # 输入验证
+        if not code:
+            return {"success": False, "error": "需要提供代码 (code 或 file 参数)"}
         validate_code(code, "code")
         validate_timeout(30, "lint")
 
