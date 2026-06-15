@@ -46,10 +46,12 @@ async def simulate_verilog(
         仿真结果字典
     """
     start_time = time.perf_counter()
-    logger.debug("simulate_verilog: design_file_paths=%s, timeout=%d", design_file_paths, timeout)
+    logger.debug("simulate_verilog: design_file_paths=%s, timeout=%s", design_file_paths, timeout)
 
     try:
         # 输入验证
+        if timeout is None:
+            timeout = 30
         timeout = validate_timeout(timeout, "simulate")
 
         if not testbench and not testbench_file:
@@ -58,9 +60,19 @@ async def simulate_verilog(
                 "error": "需要提供测试平台 (testbench 或 testbench_file 参数)",
             }
 
-        if design_file_paths:
+        if design_file_paths is not None:
+            if not isinstance(design_file_paths, list):
+                return {
+                    "success": False,
+                    "error": "design_file_paths 必须是列表",
+                }
             validate_files_list(design_file_paths, "design_file_paths")
-        elif design_files:
+        elif design_files is not None:
+            if not isinstance(design_files, list):
+                return {
+                    "success": False,
+                    "error": "design_files 必须是列表",
+                }
             validate_files_list(design_files, "design_files")
         elif code:
             validate_code(code, "code")

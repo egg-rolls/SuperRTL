@@ -16,10 +16,37 @@ def extract_ports(code: str) -> list[dict]:
     ports = []
 
     # 匹配端口声明
-    pattern = r"(input|output)\s+(?:reg\s+)?(?:\[(\d+):0\]\s+)?(\w+)"
+    # 支持: input [31:0] op_a / input wire [31:0] op_a / output reg [31:0] result
+    _kw = r"(?:wire\s+|reg\s+|wire\s+reg\s+|reg\s+wire\s+)*"
+    _bw = r"(?:\[\s*(\d+)\s*:\s*0\s*\]\s+)?"
+    pattern = rf"(input|output)\s+{_kw}{_bw}(\w+)"
 
     for match in re.finditer(pattern, code):
         direction, width, name = match.groups()
+        # 排除 Verilog 关键字被误识别为端口名
+        if name in (
+            "wire",
+            "reg",
+            "input",
+            "output",
+            "assign",
+            "always",
+            "begin",
+            "end",
+            "module",
+            "endmodule",
+            "if",
+            "else",
+            "case",
+            "default",
+            "for",
+            "parameter",
+            "localparam",
+            "function",
+            "task",
+            "generate",
+        ):
+            continue
         ports.append(
             {"direction": direction, "width": int(width) + 1 if width else 1, "name": name}
         )

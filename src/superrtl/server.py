@@ -208,7 +208,6 @@ TOOLS = [
                     "description": "要执行的检查类别 (默认全部)",
                 },
             },
-            "required": ["code"],
         },
     ),
     types.Tool(
@@ -419,17 +418,21 @@ async def list_resources() -> list[types.Resource]:
 
 
 @app.read_resource()
-async def read_resource(uri: str) -> str:
+async def read_resource(uri) -> str:
     """读取资源内容"""
     try:
-        if uri.startswith("skills://"):
-            skill_name = uri.replace("skills://", "")
+        # MCP 库可能传入 AnyUrl 对象，转为字符串处理
+        uri_str = str(uri)
+        if uri_str.startswith("skills://"):
+            skill_name = uri_str.replace("skills://", "")
             return await get_skill(skill_name)
-        elif uri.startswith("templates://"):
-            template_name = uri.replace("templates://", "")
+        elif uri_str.startswith("templates://"):
+            template_name = uri_str.replace("templates://", "")
             return await get_template(template_name)
         else:
-            return json.dumps({"error": f"未知资源 URI: {uri}"}, ensure_ascii=False)
+            return json.dumps(
+                {"error": f"未知资源 URI: {uri_str}"}, ensure_ascii=False
+            )
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 

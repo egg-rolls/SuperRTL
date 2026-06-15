@@ -28,8 +28,14 @@ async def simulate_parallel(
     Returns:
         并行仿真结果
     """
+    if not design_file_paths:
+        return {"success": False, "error": "需要提供设计文件路径 (design_file_paths)"}
     if not testbench_files:
         return {"success": False, "error": "需要提供至少一个测试平台文件"}
+    if not isinstance(design_file_paths, list):
+        return {"success": False, "error": "design_file_paths 必须是列表"}
+    if not isinstance(testbench_files, list):
+        return {"success": False, "error": "testbench_files 必须是列表"}
 
     sem = asyncio.Semaphore(max_concurrent)
     results = {}
