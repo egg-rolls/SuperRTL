@@ -8,7 +8,6 @@ from pathlib import Path
 
 import click
 from rich.console import Console
-from rich.syntax import Syntax
 from rich.table import Table
 
 from . import __version__
@@ -703,36 +702,6 @@ def formal(file: str, top: str, depth: int, timeout: int, as_json: bool):
         console.print(f"[FAIL] [red]{result.get('error')}[/red]")
         if result.get("suggestion"):
             console.print(f"   建议: {result['suggestion']}")
-
-
-@main.command()
-@click.argument("file", type=click.Path(exists=True))
-@click.option("--style", "-s", default="basic", type=click.Choice(["basic", "comprehensive"]))
-@click.option("--cases", "-c", default=3, help="测试用例数量")
-@click.option("--output", "-o", default="", help="输出文件路径")
-@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
-def testbench(file: str, style: str, cases: int, output: str, as_json: bool):
-    """生成 Testbench"""
-    from .tools import generate_testbench
-
-    code = Path(file).read_text(encoding="utf-8")
-    with console.status("[bold blue]生成 Testbench..."):
-        result = asyncio.run(generate_testbench(code, style, cases))
-
-    if as_json:
-        _output_result(result, True)
-        return
-
-    if result.get("success"):
-        tb_code = result["testbench"]
-
-        if output:
-            Path(output).write_text(tb_code, encoding="utf-8")
-            console.print(f"[OK] [green]Testbench 已保存[/green]: {output}")
-        else:
-            console.print(Syntax(tb_code, "verilog"))
-    else:
-        console.print(f"[FAIL] [red]生成失败[/red]: {result.get('error')}")
 
 
 @main.group()

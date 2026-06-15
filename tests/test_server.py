@@ -23,13 +23,12 @@ class TestListTools:
         """测试返回所有工具"""
         tools = await list_tools()
 
-        assert len(tools) == 10
+        assert len(tools) == 9
         tool_names = [t.name for t in tools]
         assert "compile_verilog" in tool_names
         assert "simulate_verilog" in tool_names
         assert "lint_verilog" in tool_names
         assert "synthesize_verilog" in tool_names
-        assert "generate_testbench" in tool_names
         assert "analyze_waveform" in tool_names
         assert "formal_verify" in tool_names
         assert "review_verilog" in tool_names
@@ -95,19 +94,6 @@ class TestCallTool:
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert "success" in data
-
-    @pytest.mark.asyncio
-    async def test_generate_testbench(self):
-        """测试生成 testbench 工具调用"""
-        result = await call_tool(
-            "generate_testbench",
-            {"code": "module counter(input clk, output reg [3:0] count); endmodule"},
-        )
-
-        assert len(result) == 1
-        data = json.loads(result[0].text)
-        assert data["success"] is True
-        assert "testbench" in data
 
     @pytest.mark.asyncio
     async def test_analyze_waveform(self):

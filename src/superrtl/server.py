@@ -16,7 +16,6 @@ from .tools import (
     analyze_waveform,
     compile_verilog,
     formal_verify,
-    generate_testbench,
     lint_verilog,
     review_verilog,
     simulate_parallel,
@@ -107,24 +106,6 @@ TOOLS = [
                     "default": "generic",
                 },
             },
-        },
-    ),
-    types.Tool(
-        name="generate_testbench",
-        description="生成 Testbench 骨架（参考用，建议 AI 自行编写更有意义的 testbench）",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "code": {"type": "string", "description": "Verilog 源代码（用于提取端口信息）"},
-                "style": {
-                    "type": "string",
-                    "description": "测试风格",
-                    "enum": ["basic", "comprehensive"],
-                    "default": "basic",
-                },
-                "test_cases": {"type": "integer", "description": "测试用例数量", "default": 3},
-            },
-            "required": ["code"],
         },
     ),
     types.Tool(
@@ -323,10 +304,6 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 target=arguments.get("target", "generic"),
                 file=arguments.get("file"),
             )
-        elif name == "generate_testbench":
-            result = await generate_testbench(
-                arguments["code"], arguments.get("style", "basic"), arguments.get("test_cases", 3)
-            )
         elif name == "analyze_waveform":
             result = await analyze_waveform(
                 arguments.get("vcd_file"),
@@ -483,13 +460,6 @@ SKILL_PROMPTS = {
             },
         ],
     },
-    "generate-testbench": {
-        "description": "Testbench 编写助手 - 提供端口信息和测试建议，AI 自行编写 testbench",
-        "arguments": [
-            {"name": "code", "description": "设计代码", "required": True},
-            {"name": "style", "description": "测试风格 (basic, comprehensive)", "required": False},
-        ],
-    },
 }
 
 
@@ -626,27 +596,6 @@ FIFO 类型: {arguments.get("type", "sync")}
 5. 功耗优化
 6. 编码规范
 7. 潜在的 Bug"""
-
-        elif name == "generate-testbench":
-            prompt_text = f"""你是一个 Verilog 验证专家。请为以下设计编写有意义的 Testbench。
-
-设计代码:
-```
-{arguments.get("code", "")}
-```
-
-测试风格: {arguments.get("style", "basic")}
-
-要求：
-1. 分析设计的功能语义（不只是端口列表）
-2. 编写有意义的测试场景（不是随机值）
-3. 包含自检查断言（assert 或 $display PASS/FAIL）
-4. 覆盖正常路径和边界情况
-5. 时钟/复位/波形输出/超时保护
-
-写完后，将 testbench 保存为文件，然后调用:
-simulate_verilog(design_file_paths=[...], testbench_file=...)
-运行验证。"""
 
         else:
             prompt_text = f"未知 Prompt: {name}"
