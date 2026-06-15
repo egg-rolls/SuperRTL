@@ -26,7 +26,7 @@ def _output_result(result: dict, as_json: bool):
 @click.version_option(version=__version__, prog_name="superrtl")
 @click.option("--verbose", "-v", is_flag=True, help="显示详细日志")
 def main(verbose: bool):
-    """SuperRTL - Verilog EDA 工具的 MCP/CLI 客户端"""
+    f"""SuperRTL v{__version__} - Verilog EDA 工具的 MCP/CLI 客户端"""
     from .logging import setup_logging
 
     level = "debug" if verbose else "warning"
