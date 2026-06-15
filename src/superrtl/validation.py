@@ -167,6 +167,7 @@ def validate_timeout(timeout: int, tool: str = "default") -> int:
         "simulate": 300,
         "lint": 60,
         "synthesize": 300,
+        "formal": 600,
         "default": 300,
     }
     max_timeout = max_timeouts.get(tool, max_timeouts["default"])

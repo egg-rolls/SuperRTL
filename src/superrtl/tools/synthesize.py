@@ -2,6 +2,7 @@
 Yosys 综合检查工具
 """
 
+import logging
 import subprocess
 import tempfile
 import time
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from ..utils import extract_top_module, run_command
 from ..validation import ValidationError, validate_code, validate_target, validate_top_module
+
+logger = logging.getLogger("superrtl.synthesize")
 
 # 目标工艺库对应的综合命令
 _TARGET_SYNTH = {
@@ -31,6 +34,7 @@ async def synthesize_verilog(code: str, top_module: str = "", target: str = "gen
         综合结果字典
     """
     start_time = time.perf_counter()
+    logger.debug("synthesize_verilog: top_module=%s target=%s", top_module, target)
 
     try:
         # 输入验证
@@ -70,6 +74,9 @@ stat
 
             # 解析资源报告
             resources = _parse_resources(result.stdout)
+            logger.info(
+                "synthesize_verilog: top=%s target=%s duration=%.3fs", top_module, target, duration
+            )
 
             return {
                 "success": result.returncode == 0,

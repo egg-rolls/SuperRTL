@@ -5,12 +5,13 @@
 """
 
 import json
-import re
 import socket
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from threading import Thread
+
+from ..utils.verilog import parse_vcd
 
 
 def _find_free_port(start: int = 8080, max_tries: int = 100) -> int:
@@ -23,85 +24,6 @@ def _find_free_port(start: int = 8080, max_tries: int = 100) -> int:
         except OSError:
             continue
     raise RuntimeError(f"No free port found in range {start}-{start + max_tries}")
-
-
-def _parse_vcd_to_json(content: str) -> dict:
-    """解析 VCD 文件为 JSON 格式（供前端使用）"""
-    result = {
-        "success": True,
-        "timescale": "1ns",
-        "signals": {},
-        "time_range": {"start": 0, "end": 0},
-    }
-
-    current_time = 0
-    signal_map = {}  # id -> name
-    scope_stack = []  # 层次结构栈
-
-    for line in content.splitlines():
-        line = line.strip()
-
-        # 解析时间刻度
-        if "$timescale" in line:
-            match = re.search(r"\$timescale\s+(.+?)\s+\$end", content)
-            if match:
-                result["timescale"] = match.group(1).strip()
-
-        # 解析层次
-        elif line.startswith("$scope"):
-            match = re.match(r"\$scope\s+\w+\s+(\S+)\s+\$end", line)
-            if match:
-                scope_stack.append(match.group(1))
-
-        elif line.startswith("$upscope"):
-            if scope_stack:
-                scope_stack.pop()
-
-        # 解析信号定义
-        elif line.startswith("$var"):
-            match = re.match(r"\$var\s+\w+\s+(\d+)\s+(\S+)\s+(\S+)", line)
-            if match:
-                width = int(match.group(1))
-                sig_id = match.group(2)
-                sig_name = match.group(3)
-                # 构建完整路径
-                full_name = ".".join(scope_stack + [sig_name]) if scope_stack else sig_name
-                signal_map[sig_id] = full_name
-                result["signals"][full_name] = {"width": width, "values": []}
-
-        # 解析时间
-        elif line.startswith("#"):
-            try:
-                current_time = int(line[1:])
-                result["time_range"]["end"] = max(result["time_range"]["end"], current_time)
-            except ValueError:
-                pass
-
-        # 解析信号值变化
-        elif line and line[0] in "01xzXZ":
-            value = line[0]
-            sig_id = line[1:].strip() if len(line) > 1 else ""
-            if sig_id in signal_map:
-                sig_name = signal_map[sig_id]
-                if sig_name in result["signals"]:
-                    result["signals"][sig_name]["values"].append(
-                        {"time": current_time, "value": value}
-                    )
-
-        # 多位信号
-        elif line.startswith("b"):
-            parts = line.split()
-            if len(parts) >= 2:
-                value = parts[0][1:]  # 去掉 'b' 前缀
-                sig_id = parts[1]
-                if sig_id in signal_map:
-                    sig_name = signal_map[sig_id]
-                    if sig_name in result["signals"]:
-                        result["signals"][sig_name]["values"].append(
-                            {"time": current_time, "value": value}
-                        )
-
-    return result
 
 
 class WaveformHandler(SimpleHTTPRequestHandler):
@@ -121,6 +43,7 @@ class WaveformHandler(SimpleHTTPRequestHandler):
 
     def _serve_viewer(self):
         """返回波形查看器 HTML 页面"""
+        # 优先使用包内 shared 目录（安装后）
         viewer_path = (
             Path(__file__).parent.parent.parent.parent / "shared" / "waveform" / "viewer.html"
         )
@@ -215,8 +138,8 @@ def start_waveform_server(
     except Exception as e:
         return {"success": False, "error": f"Failed to read VCD file: {e}"}
 
-    # 解析 VCD 数据
-    vcd_data = _parse_vcd_to_json(content)
+    # 解析 VCD 数据（带 scope 层次结构）
+    vcd_data = parse_vcd(content, include_scope=True)
     vcd_data["source_file"] = str(vcd_path.absolute())
 
     # 设置类变量

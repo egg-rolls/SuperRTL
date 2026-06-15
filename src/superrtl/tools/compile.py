@@ -2,6 +2,7 @@
 Icarus Verilog 编译工具
 """
 
+import logging
 import subprocess
 import tempfile
 import time
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from ..utils import extract_top_module, run_command
 from ..validation import ValidationError, validate_code, validate_files_list, validate_top_module
+
+logger = logging.getLogger("superrtl.compile")
 
 
 async def compile_verilog(code: str = None, top_module: str = "", files: list[str] = None) -> dict:
@@ -28,6 +31,7 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
         编译结果字典
     """
     start_time = time.perf_counter()
+    logger.debug("compile_verilog: files=%s, top_module=%s", files, top_module)
 
     try:
         # 输入验证
@@ -80,6 +84,9 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
             duration = time.perf_counter() - start_time
 
             if result.returncode == 0:
+                logger.info(
+                    "compile_verilog: 成功 top_module=%s duration=%.3fs", top_module, duration
+                )
                 return {
                     "success": True,
                     "top_module": top_module,
@@ -89,8 +96,11 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
                 }
             else:
                 errors = _parse_errors(result.stderr)
+                logger.warning("compile_verilog: 失败 errors=%d", len(errors))
                 return {
                     "success": False,
+                    "stage": "compilation",
+                    "error": f"编译失败 ({len(errors)} 个错误)",
                     "top_module": top_module,
                     "source_files": len(source_files),
                     "duration": round(duration, 3),

@@ -2,34 +2,12 @@
 集成测试 - 测试完整的编译 → 仿真流程
 """
 
-import subprocess
-import tempfile
-from pathlib import Path
-
 import pytest
+from conftest import requires_iverilog
 
 from superrtl.tools.compile import compile_verilog
 from superrtl.tools.simulate import simulate_verilog
 from superrtl.tools.testbench import generate_testbench
-
-
-def iverilog_works():
-    """检查 iverilog 是否能正常工作"""
-    try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            test_file = Path(tmpdir) / "test.v"
-            test_file.write_text("module test; endmodule")
-            output_file = Path(tmpdir) / "test.vvp"
-            result = subprocess.run(
-                ["iverilog", "-o", str(output_file), str(test_file)], capture_output=True, timeout=5
-            )
-            return result.returncode == 0
-    except Exception:
-        return False
-
-
-# 跳过标记
-requires_iverilog = pytest.mark.skipif(not iverilog_works(), reason="iverilog 不能正常工作")
 
 
 class TestCompileSimulateFlow:

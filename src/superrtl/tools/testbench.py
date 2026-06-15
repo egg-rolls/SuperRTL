@@ -179,12 +179,12 @@ async def generate_testbench(code: str, style: str = "basic", test_cases: int = 
         lines.append("")
 
     # 生成测试用例
-    for i in range(test_cases):
-        lines.append(f"        // 测试用例 {i + 1}: {_generate_test_comment(i, input_ports)}")
+    test_values = _generate_all_test_values(input_ports, test_cases, style)
+    for i, test_val in enumerate(test_values):
+        lines.append(f"        // 测试用例 {i + 1}: {test_val['comment']}")
 
         for port in input_ports:
-            value = _generate_test_value(port, i, test_cases)
-            lines.append(f"        {port['name']} = {value};")
+            lines.append(f"        {port['name']} = {test_val['values'][port['name']]};")
 
         wait_cycles = _get_wait_cycles(style)
         if has_clk:
@@ -211,8 +211,34 @@ async def generate_testbench(code: str, style: str = "basic", test_cases: int = 
             lines.append(f"            @(posedge {clk_name});")
         else:
             lines.append("            #10;")
+        if output_ports:
+            for port in output_ports:
+                lines.append(
+                    f'            check("Random: {port["name"]}", {port["name"]} !== 1\'bx);'
+                )
         lines.append("        end")
         lines.append("")
+
+    # 综合模式：边界值测试
+    if style == "comprehensive":
+        boundary_cases = _generate_boundary_cases(input_ports)
+        if boundary_cases:
+            lines.append("        // 边界值测试")
+            for case in boundary_cases:
+                lines.append(f"        // {case['comment']}")
+                for port in input_ports:
+                    lines.append(f"        {port['name']} = {case['values'][port['name']]};")
+                wait_cycles = _get_wait_cycles(style)
+                if has_clk:
+                    lines.append(f"        repeat({wait_cycles}) @(posedge {clk_name});")
+                else:
+                    lines.append(f"        #{wait_cycles * 10};")
+                if output_ports:
+                    for port in output_ports:
+                        lines.append(
+                            f'        check("Boundary: {port["name"]}", {port["name"]} !== 1\'bx);'
+                        )
+            lines.append("")
 
     # 测试完成
     if style == "comprehensive":
@@ -322,3 +348,91 @@ def _get_wait_cycles(style: str) -> int:
     if style == "comprehensive":
         return 5
     return 10
+
+
+def _generate_all_test_values(input_ports: list, test_cases: int, style: str) -> list[dict]:
+    """生成所有测试用例的输入值"""
+    cases = []
+
+    # 基础测试用例
+    for i in range(test_cases):
+        comment = _generate_test_comment(i, input_ports)
+        values = {}
+        for port in input_ports:
+            values[port["name"]] = _generate_test_value(port, i, test_cases)
+        cases.append({"comment": comment, "values": values})
+
+    return cases
+
+
+def _generate_boundary_cases(input_ports: list) -> list[dict]:
+    """生成边界值测试用例"""
+    cases = []
+
+    for port in input_ports:
+        width = port["width"]
+        if width <= 1:
+            # 单位信号：测试 0 和 1
+            cases.append(
+                {
+                    "comment": f"{port['name']} = 0 (最小值)",
+                    "values": {
+                        p["name"]: "0" if p["name"] == port["name"] else _default_value(p)
+                        for p in input_ports
+                    },
+                }
+            )
+            cases.append(
+                {
+                    "comment": f"{port['name']} = 1 (最大值)",
+                    "values": {
+                        p["name"]: "1" if p["name"] == port["name"] else _default_value(p)
+                        for p in input_ports
+                    },
+                }
+            )
+        else:
+            # 总线信号：测试 0, 1, max-1, max
+            max_val = (1 << width) - 1
+            max_hex = f"{width}'h{max_val:x}"
+            cases.append(
+                {
+                    "comment": f"{port['name']} = 0 (最小值)",
+                    "values": {
+                        p["name"]: f"{p['width']}'d0"
+                        if p["name"] == port["name"]
+                        else _default_value(p)
+                        for p in input_ports
+                    },
+                }
+            )
+            cases.append(
+                {
+                    "comment": f"{port['name']} = 1",
+                    "values": {
+                        p["name"]: f"{p['width']}'d1"
+                        if p["name"] == port["name"]
+                        else _default_value(p)
+                        for p in input_ports
+                    },
+                }
+            )
+            cases.append(
+                {
+                    "comment": f"{port['name']} = {max_val} (最大值)",
+                    "values": {
+                        p["name"]: max_hex if p["name"] == port["name"] else _default_value(p)
+                        for p in input_ports
+                    },
+                }
+            )
+
+    return cases
+
+
+def _default_value(port: dict) -> str:
+    """获取端口的默认值"""
+    width = port["width"]
+    if width > 1:
+        return f"{width}'d0"
+    return "0"

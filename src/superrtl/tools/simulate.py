@@ -2,6 +2,7 @@
 Icarus Verilog 仿真工具
 """
 
+import logging
 import shutil
 import subprocess
 import tempfile
@@ -11,10 +12,13 @@ from pathlib import Path
 from ..utils import run_command
 from ..validation import ValidationError, validate_code, validate_files_list, validate_timeout
 
+logger = logging.getLogger("superrtl.simulate")
+
 
 async def simulate_verilog(
     code: str = None,
     testbench: str = None,
+    testbench_file: str = None,
     timeout: int = 30,
     design_files: list[str] = None,
     design_file_paths: list[str] = None,
@@ -26,9 +30,14 @@ async def simulate_verilog(
     1. 单文件模式：传入 code 和 testbench 字符串
     2. 多文件模式：传入 design_files（代码字符串列表）或 design_file_paths（文件路径列表）
 
+    测试平台支持两种传入方式：
+    - testbench: 测试平台代码字符串
+    - testbench_file: 测试平台文件路径（优先级更高）
+
     Args:
         code: 单个设计文件代码（单文件模式）
-        testbench: 测试平台代码
+        testbench: 测试平台代码字符串
+        testbench_file: 测试平台文件路径（优先于 testbench）
         timeout: 仿真超时时间 (秒)
         design_files: 多个设计文件代码字符串列表（多文件模式）
         design_file_paths: 多个设计文件路径列表（多文件模式）
@@ -37,13 +46,17 @@ async def simulate_verilog(
         仿真结果字典
     """
     start_time = time.perf_counter()
+    logger.debug("simulate_verilog: design_file_paths=%s, timeout=%d", design_file_paths, timeout)
 
     try:
         # 输入验证
         timeout = validate_timeout(timeout, "simulate")
 
-        if not testbench:
-            return {"success": False, "error": "需要提供测试平台代码 (testbench 参数)"}
+        if not testbench and not testbench_file:
+            return {
+                "success": False,
+                "error": "需要提供测试平台 (testbench 或 testbench_file 参数)",
+            }
 
         if design_file_paths:
             validate_files_list(design_file_paths, "design_file_paths")
@@ -81,10 +94,18 @@ async def simulate_verilog(
                 design_file.write_text(code, encoding="utf-8")
                 source_files.append(str(design_file))
 
-            # 写入测试平台
-            tb_file = tmpdir_path / "testbench.v"
-            tb_file.write_text(testbench, encoding="utf-8")
-            source_files.append(str(tb_file))
+            # 测试平台：优先使用文件路径，回退到代码字符串
+            if testbench_file:
+                tb_path = Path(testbench_file)
+                if not tb_path.exists():
+                    return {"success": False, "error": f"测试平台文件不存在: {testbench_file}"}
+                dest_tb = tmpdir_path / tb_path.name
+                shutil.copy2(str(tb_path), str(dest_tb))
+                source_files.append(str(dest_tb))
+            else:
+                tb_file = tmpdir_path / "testbench.v"
+                tb_file.write_text(testbench, encoding="utf-8")
+                source_files.append(str(tb_file))
 
             # 编译
             output_file = tmpdir_path / "simulation.vvp"
@@ -94,9 +115,11 @@ async def simulate_verilog(
             )
 
             if compile_result.returncode != 0:
+                logger.warning("simulate_verilog: 编译失败 stderr=%s", compile_result.stderr[:200])
                 return {
                     "success": False,
                     "stage": "compilation",
+                    "error": "仿真编译失败",
                     "errors": compile_result.stderr.splitlines(),
                     "duration": time.perf_counter() - start_time,
                     "suggestion": "检查模块名是否正确、端口连接是否匹配",
@@ -111,6 +134,7 @@ async def simulate_verilog(
 
             # 判断结果
             passed = "PASS" in sim_result.stdout and "FAIL" not in sim_result.stdout
+            logger.info("simulate_verilog: passed=%s duration=%.3fs", passed, duration)
 
             result = {
                 "success": True,

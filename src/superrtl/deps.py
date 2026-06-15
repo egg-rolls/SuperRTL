@@ -8,8 +8,11 @@ Verilog 模块依赖解析
 - 拓扑排序确定编译顺序
 """
 
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger("superrtl.deps")
 
 
 def parse_includes(content: str) -> list[str]:
@@ -69,7 +72,8 @@ def analyze_file(filepath: Path) -> dict:
     """分析单个文件"""
     try:
         content = filepath.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as e:
+        logger.warning("analyze_file: 无法读取文件 %s: %s", filepath, e)
         return {"file": str(filepath), "defines": [], "instances": [], "includes": []}
 
     includes = parse_includes(content)

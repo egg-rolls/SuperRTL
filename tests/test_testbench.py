@@ -121,3 +121,59 @@ class TestGenerateTestbench:
 
         assert "reg [7:0] d" in tb
         assert "wire [7:0] q" in tb
+
+    @pytest.mark.asyncio
+    async def test_comprehensive_has_assertions(self):
+        """测试 comprehensive 模式包含自检查断言"""
+        code = """
+        module counter (
+            input clk,
+            input rst_n,
+            output reg [3:0] count
+        );
+        endmodule
+        """
+        result = await generate_testbench(code, style="comprehensive")
+        tb = result["testbench"]
+
+        assert "check(" in tb
+        assert "test_count" in tb
+        assert "pass_count" in tb
+        assert "error_count" in tb
+        assert "Test Summary" in tb
+
+    @pytest.mark.asyncio
+    async def test_comprehensive_has_boundary_values(self):
+        """测试 comprehensive 模式包含边界值测试"""
+        code = """
+        module test_mod (
+            input clk,
+            input [7:0] data_in,
+            output reg [7:0] data_out
+        );
+        endmodule
+        """
+        result = await generate_testbench(code, style="comprehensive")
+        tb = result["testbench"]
+
+        # 边界值测试
+        assert "边界值测试" in tb
+        assert "最小值" in tb
+        assert "最大值" in tb
+
+    @pytest.mark.asyncio
+    async def test_comprehensive_random_checks(self):
+        """测试 comprehensive 模式随机测试包含检查"""
+        code = """
+        module adder (
+            input [7:0] a,
+            input [7:0] b,
+            output [8:0] sum
+        );
+        endmodule
+        """
+        result = await generate_testbench(code, style="comprehensive")
+        tb = result["testbench"]
+
+        assert "随机测试" in tb
+        assert "Random:" in tb

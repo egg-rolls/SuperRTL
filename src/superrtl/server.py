@@ -8,15 +8,17 @@ import asyncio
 import json
 
 from mcp import types
-from mcp.server import Server
+from mcp.server import InitializationOptions, NotificationOptions, Server
 from mcp.server.stdio import stdio_server
 
 from .resources import get_skill, get_template, list_skills, list_templates
 from .tools import (
     analyze_waveform,
     compile_verilog,
+    formal_verify,
     generate_testbench,
     lint_verilog,
+    review_verilog,
     simulate_verilog,
     synthesize_verilog,
 )
@@ -46,7 +48,7 @@ TOOLS = [
     ),
     types.Tool(
         name="simulate_verilog",
-        description="使用 Icarus Verilog 运行仿真（支持单文件或多文件）",
+        description="运行 Verilog 仿真。支持文件路径或代码字符串，AI 可自行生成文件后传入路径",
         inputSchema={
             "type": "object",
             "properties": {
@@ -56,10 +58,18 @@ TOOLS = [
                     "items": {"type": "string"},
                     "description": "多个设计文件代码列表（多文件模式）",
                 },
-                "testbench": {"type": "string", "description": "测试平台代码"},
+                "design_file_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "多个设计文件路径列表（文件模式）",
+                },
+                "testbench": {"type": "string", "description": "测试平台代码字符串"},
+                "testbench_file": {
+                    "type": "string",
+                    "description": "测试平台文件路径（优先于 testbench）",
+                },
                 "timeout": {"type": "integer", "description": "仿真超时时间 (秒)", "default": 30},
             },
-            "required": ["testbench"],
         },
     ),
     types.Tool(
@@ -131,6 +141,56 @@ TOOLS = [
             },
         },
     ),
+    types.Tool(
+        name="formal_verify",
+        description="使用 SymbiYosys 进行形式验证 (BMC 模型检查)",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "Verilog 源代码（需包含 assert/assume/cover）",
+                },
+                "top_module": {"type": "string", "description": "顶层模块名", "default": ""},
+                "depth": {
+                    "type": "integer",
+                    "description": "BMC 搜索深度",
+                    "default": 20,
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "验证超时时间 (秒)",
+                    "default": 300,
+                },
+            },
+            "required": ["code"],
+        },
+    ),
+    types.Tool(
+        name="review_verilog",
+        description="审查 Verilog 代码的可综合性、常见陷阱和编码风格",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Verilog 源代码"},
+                "checks": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "synthesizability",
+                            "latch",
+                            "naming",
+                            "reset",
+                            "case",
+                        ],
+                    },
+                    "description": "要执行的检查类别 (默认全部)",
+                },
+            },
+            "required": ["code"],
+        },
+    ),
 ]
 
 
@@ -155,14 +215,14 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 code=code, files=files, top_module=arguments.get("top_module", "")
             )
         elif name == "simulate_verilog":
-            # 支持 code（单文件）或 design_files（多文件）
-            code = arguments.get("code")
-            design_files = arguments.get("design_files")
+            # 支持 code（单文件）或 design_files/design_file_paths（多文件）
             result = await simulate_verilog(
-                code=code,
-                testbench=arguments["testbench"],
+                code=arguments.get("code"),
+                testbench=arguments.get("testbench"),
+                testbench_file=arguments.get("testbench_file"),
                 timeout=arguments.get("timeout", 30),
-                design_files=design_files,
+                design_files=arguments.get("design_files"),
+                design_file_paths=arguments.get("design_file_paths"),
             )
         elif name == "lint_verilog":
             result = await lint_verilog(arguments["code"], arguments.get("style", "default"))
@@ -179,6 +239,18 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         elif name == "analyze_waveform":
             result = await analyze_waveform(
                 arguments.get("vcd_file"), arguments.get("vcd_content"), arguments.get("signals")
+            )
+        elif name == "formal_verify":
+            result = await formal_verify(
+                arguments["code"],
+                top_module=arguments.get("top_module", ""),
+                depth=arguments.get("depth", 20),
+                timeout=arguments.get("timeout", 300),
+            )
+        elif name == "review_verilog":
+            result = await review_verilog(
+                arguments["code"],
+                checks=arguments.get("checks"),
             )
         else:
             result = {"success": False, "error": f"未知工具: {name}"}
@@ -486,12 +558,28 @@ FIFO 类型: {arguments.get("type", "sync")}
 
 async def run_stdio():
     """以 stdio 模式运行 (用于 MCP Host 连接)"""
+    from . import __version__
+
     async with stdio_server() as (read, write):
-        await app.run(read, write)
+        await app.run(
+            read,
+            write,
+            InitializationOptions(
+                server_name="superrtl",
+                server_version=__version__,
+                capabilities=app.get_capabilities(
+                    NotificationOptions(),
+                    experimental_capabilities={},
+                ),
+            ),
+        )
 
 
 def main():
     """主入口"""
+    from .logging import setup_logging
+
+    setup_logging(level="info")
     asyncio.run(run_stdio())
 
 

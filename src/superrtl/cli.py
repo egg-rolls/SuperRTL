@@ -24,9 +24,13 @@ def _output_result(result: dict, as_json: bool):
 
 @click.group()
 @click.version_option(version=__version__, prog_name="superrtl")
-def main():
+@click.option("--verbose", "-v", is_flag=True, help="显示详细日志")
+def main(verbose: bool):
     """SuperRTL - Verilog EDA 工具的 MCP/CLI 客户端"""
-    pass
+    from .logging import setup_logging
+
+    level = "debug" if verbose else "warning"
+    setup_logging(level=level)
 
 
 # ============ Skills 命令组 ============
@@ -535,6 +539,60 @@ def lint(file: str, style: str, as_json: bool):
 
 @main.command()
 @click.argument("file", type=click.Path(exists=True))
+@click.option(
+    "--checks", "-c", multiple=True, help="检查类别 (synthesizability/latch/naming/reset/case)"
+)
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def review(file: str, checks: tuple, as_json: bool):
+    """代码审查 - 检查可综合性、常见陷阱和编码风格"""
+    from .tools import review_verilog
+
+    code = Path(file).read_text(encoding="utf-8")
+    with console.status("[bold blue]代码审查中..."):
+        result = asyncio.run(review_verilog(code, checks=list(checks) if checks else None))
+
+    if as_json:
+        _output_result(result, True)
+        return
+
+    if result.get("success"):
+        summary = result.get("summary", {})
+        total = sum(summary.values())
+
+        if total == 0:
+            console.print("[OK] [green]代码审查通过，未发现问题[/green]")
+        else:
+            console.print(f"[INFO] [blue]发现 {total} 个问题[/blue]")
+            if summary.get("errors"):
+                console.print(f"   [red]错误: {summary['errors']}[/red]")
+            if summary.get("warnings"):
+                console.print(f"   [yellow]警告: {summary['warnings']}[/yellow]")
+            if summary.get("infos"):
+                console.print(f"   [dim]提示: {summary['infos']}[/dim]")
+
+            console.print("\n   问题列表:")
+            for issue in result.get("issues", [])[:10]:
+                severity_color = {"error": "red", "warning": "yellow", "info": "dim"}.get(
+                    issue["severity"], "white"
+                )
+                console.print(
+                    f"     [{severity_color}]{issue['severity'].upper()}[/{severity_color}] "
+                    f"行 {issue.get('line', '?')}: {issue['message']}"
+                )
+                if issue.get("suggestion"):
+                    console.print(f"       建议: {issue['suggestion']}")
+
+        synthesizable = result.get("synthesizable", True)
+        if synthesizable:
+            console.print("\n[OK] [green]代码可综合[/green]")
+        else:
+            console.print("\n[WARN] [yellow]代码包含不可综合的结构[/yellow]")
+    else:
+        console.print(f"[FAIL] [red]{result.get('error')}[/red]")
+
+
+@main.command()
+@click.argument("file", type=click.Path(exists=True))
 @click.option("--top", "-t", default="", help="顶层模块名")
 @click.option("--target", default="generic", type=click.Choice(["generic", "xilinx", "ice40"]))
 @click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
@@ -560,6 +618,44 @@ def synthesize(file: str, top: str, target: str, as_json: bool):
         console.print("[FAIL] [red]综合失败[/red]")
         for error in result.get("errors", []):
             console.print(f"   {error}")
+
+
+@main.command()
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--top", "-t", default="", help="顶层模块名")
+@click.option("--depth", "-d", default=20, help="BMC 搜索深度")
+@click.option("--timeout", default=300, help="超时时间 (秒)")
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def verify(file: str, top: str, depth: int, timeout: int, as_json: bool):
+    """形式验证 (SymbiYosys BMC)"""
+    from .tools import formal_verify
+
+    code = Path(file).read_text(encoding="utf-8")
+    with console.status("[bold blue]形式验证中..."):
+        result = asyncio.run(formal_verify(code, top_module=top, depth=depth, timeout=timeout))
+
+    if as_json:
+        _output_result(result, True)
+        return
+
+    if result.get("success"):
+        if result.get("passed"):
+            console.print("[OK] [green]形式验证通过[/green]")
+        else:
+            console.print("[FAIL] [red]形式验证失败[/red]")
+        console.print(f"   顶层模块: {result.get('top_module')}")
+        console.print(f"   BMC 深度: {result.get('depth')}")
+        console.print(f"   耗时: {result.get('duration')}s")
+
+        if result.get("properties"):
+            console.print("   属性:")
+            for prop in result["properties"]:
+                status = "[green]PASS[/green]" if prop["status"] == "passed" else "[red]FAIL[/red]"
+                console.print(f"     {status}: {prop.get('detail', '')}")
+    else:
+        console.print(f"[FAIL] [red]{result.get('error')}[/red]")
+        if result.get("suggestion"):
+            console.print(f"   建议: {result['suggestion']}")
 
 
 @main.command()
@@ -691,8 +787,7 @@ def uninstall():
 
 
 @main.command()
-@click.option("--port", "-p", default=8080, help="SSE 端口")
-def mcp(port: int):
+def mcp():
     """启动 MCP Server (stdio 模式)"""
     from .server import main as server_main
 

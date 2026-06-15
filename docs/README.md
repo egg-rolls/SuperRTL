@@ -31,11 +31,15 @@
 | Tool | 命令 | 功能 | 依赖 |
 |------|------|------|------|
 | `compile_verilog` | `superrtl compile` | 编译 (支持多文件) | Icarus Verilog |
-| `simulate_verilog` | `superrtl simulate` | 仿真 (支持多文件) | Icarus Verilog |
+| `simulate_verilog` | `superrtl simulate` | 仿真 (支持文件路径) | Icarus Verilog |
 | `lint_verilog` | `superrtl lint` | Lint 检查 | Verilator |
 | `synthesize_verilog` | `superrtl synthesize` | 综合检查 | Yosys |
-| `generate_testbench` | `superrtl testbench` | 生成测试平台 | 内置 |
+| `formal_verify` | `superrtl verify` | 形式验证 (BMC) | SymbiYosys |
+| `review_verilog` | `superrtl review` | 代码审查 | 内置 |
+| `generate_testbench` | `superrtl testbench` | 生成测试平台骨架 (可选) | 内置 |
 | `analyze_waveform` | `superrtl waveform` | 波形分析/查看 | 内置 |
+
+> **推荐工作流**：AI 自行生成 `design.v` 和 `testbench.v` 文件，通过文件路径调用 `simulate_verilog` 运行仿真，根据返回的错误信息迭代修复。
 
 ### MCP Resources
 
@@ -172,11 +176,8 @@ superrtl simulate tb.v alu.v counter.v
 ### 使用 MCP Server
 
 ```bash
-# 启动 MCP Server
+# 启动 MCP Server (stdio 模式)
 superrtl mcp
-
-# 指定传输方式
-superrtl mcp --transport sse --port 8080
 ```
 
 ### 配置 MCP Host
@@ -194,6 +195,18 @@ superrtl mcp --transport sse --port 8080
 ```
 
 **Cursor** (`.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "superrtl": {
+      "command": "superrtl",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**Hermes Agent**:
 ```json
 {
   "mcpServers": {
@@ -238,10 +251,12 @@ docker run -it -v $(pwd):/workspace superrtl bash
 | `superrtl setup` | 安装 EDA 工具 |
 | `superrtl check-tools` | 检查工具状态 |
 | `superrtl compile <file>` | 编译 Verilog 代码 |
-| `superrtl simulate <design> <testbench>` | 运行仿真 |
+| `superrtl simulate <testbench> <designs...>` | 运行仿真 |
 | `superrtl lint <file>` | Lint 检查 |
 | `superrtl synthesize <file>` | 综合检查 |
-| `superrtl testbench <file>` | 生成 Testbench |
+| `superrtl verify <file>` | 形式验证 (SymbiYosys BMC) |
+| `superrtl review <file>` | 代码审查 |
+| `superrtl testbench <file>` | 生成 Testbench 骨架 |
 | `superrtl waveform <file>` | 分析波形 |
 | `superrtl mcp` | 启动 MCP Server |
 | `superrtl uninstall` | 卸载 EDA 工具 |
@@ -270,14 +285,21 @@ SuperRTL/
 │   ├── cli.py                 # CLI 入口
 │   ├── setup.py               # EDA 工具安装管理
 │   ├── runtime.py             # 运行时环境管理
+│   ├── validation.py          # 输入验证
+│   ├── deps.py                # 模块依赖解析
+│   ├── project.py             # 项目配置管理
+│   ├── logging.py             # 日志系统
 │   │
 │   ├── tools/                 # MCP Tools
-│   │   ├── compile.py
-│   │   ├── simulate.py
-│   │   ├── lint.py
-│   │   ├── synthesize.py
-│   │   ├── testbench.py
-│   │   └── waveform.py
+│   │   ├── compile.py         # Icarus Verilog 编译
+│   │   ├── simulate.py        # Icarus Verilog 仿真
+│   │   ├── lint.py            # Verilator Lint
+│   │   ├── synthesize.py      # Yosys 综合检查
+│   │   ├── formal.py          # SymbiYosys 形式验证
+│   │   ├── review.py          # 代码审查
+│   │   ├── testbench.py       # Testbench 生成骨架
+│   │   ├── waveform.py        # VCD 波形分析
+│   │   └── waveform_server.py # Web 波形查看器
 │   │
 │   ├── resources/             # MCP Resources
 │   │   ├── skills.py
@@ -285,19 +307,20 @@ SuperRTL/
 │   │
 │   └── utils/
 │       ├── __init__.py        # run_command
-│       └── verilog.py
+│       └── verilog.py         # Verilog 解析 + VCD 解析
 │
 ├── shared/                    # 共享资源
-│   ├── skills/                # 设计模式文档
-│   └── templates/             # 代码模板
+│   ├── skills/                # 设计模式文档 (21 个)
+│   ├── templates/             # 代码模板 (10 个)
+│   └── waveform/              # 波形查看器 HTML
 │
 ├── .superrtl/                 # EDA 工具安装目录（自动生成）
 │   └── oss-cad-suite/
-│       ├── bin/
+│       ├── bin/               # iverilog, yosys, verilator, sby
 │       └── lib/
 │
 ├── Dockerfile                 # Docker 镜像
-├── tests/
+├── tests/                     # 测试 (159 tests)
 ├── examples/
 └── pyproject.toml
 ```
@@ -341,24 +364,50 @@ $ superrtl simulate counter.v counter_tb.v
 
 ### MCP 调用示例
 
+**编译**（传入代码字符串）：
 ```json
-// tools/call
 {
   "name": "compile_verilog",
   "arguments": {
-    "code": "module counter(...); ...",
+    "code": "module counter(input clk, input rst_n, output reg [3:0] count); ...",
     "top_module": "counter"
   }
 }
+```
 
-// 返回
+**仿真**（传入文件路径 — 推荐方式）：
+```json
 {
-  "content": [
-    {
-      "type": "text",
-      "text": "{\"success\": true, \"message\": \"编译成功\"}"
-    }
-  ]
+  "name": "simulate_verilog",
+  "arguments": {
+    "design_file_paths": ["./src/counter.v"],
+    "testbench_file": "./tb/counter_tb.v",
+    "timeout": 30
+  }
+}
+```
+
+**仿真**（传入代码字符串）：
+```json
+{
+  "name": "simulate_verilog",
+  "arguments": {
+    "code": "module counter(...); ...",
+    "testbench": "module tb; ... initial $display(\"PASS\"); ...",
+    "timeout": 30
+  }
+}
+```
+
+**返回结构**：
+```json
+{
+  "success": true,
+  "passed": true,
+  "stage": "simulation",
+  "duration": 0.456,
+  "output": "PASS\n",
+  "vcd_file": "simulation.vcd"
 }
 ```
 

@@ -5,11 +5,12 @@
 import subprocess
 import sys
 
-from .verilog import extract_ports, extract_top_module
+from .verilog import extract_ports, extract_top_module, parse_vcd
 
 __all__ = [
     "extract_top_module",
     "extract_ports",
+    "parse_vcd",
     "run_command",
 ]
 

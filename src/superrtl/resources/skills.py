@@ -129,18 +129,3 @@ async def get_skill(skill_name: str) -> str:
     return json.dumps(
         {"error": f"Skill 未找到: {skill_name}", "available": available}, ensure_ascii=False
     )
-
-
-async def get_skill_raw(skill_name: str) -> str:
-    """获取指定 Skill 的原始内容（含 frontmatter）"""
-    possible_names = [
-        f"verilog_{skill_name}.md",
-        f"{skill_name}.md",
-    ]
-
-    for name in possible_names:
-        skill_file = SKILLS_DIR / name
-        if skill_file.exists():
-            return skill_file.read_text(encoding="utf-8")
-
-    return None

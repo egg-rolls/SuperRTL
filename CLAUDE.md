@@ -68,6 +68,8 @@ superrtl compile design.v
 superrtl simulate testbench.v design.v
 superrtl lint design.v
 superrtl synthesize design.v --top counter
+superrtl verify design.v --top counter
+superrtl review design.v
 
 # CLI usage - Multi-file
 superrtl compile src/*.v

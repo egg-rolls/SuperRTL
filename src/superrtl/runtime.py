@@ -97,6 +97,7 @@ def get_tools_status() -> dict:
         "vvp": "Icarus Verilog (仿真器)",
         "yosys": "Yosys (综合检查)",
         "verilator": "Verilator (Lint)",
+        "sby": "SymbiYosys (形式验证)",
     }
 
     status = {}

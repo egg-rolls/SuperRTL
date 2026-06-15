@@ -2,6 +2,7 @@
 Verilator Lint 工具
 """
 
+import logging
 import subprocess
 import tempfile
 import time
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from ..utils import run_command
 from ..validation import ValidationError, validate_code, validate_timeout
+
+logger = logging.getLogger("superrtl.lint")
 
 
 async def lint_verilog(code: str, style: str = "default") -> dict:
@@ -23,6 +26,7 @@ async def lint_verilog(code: str, style: str = "default") -> dict:
         Lint 结果字典
     """
     start_time = time.perf_counter()
+    logger.debug("lint_verilog: style=%s", style)
 
     try:
         # 输入验证
@@ -59,6 +63,12 @@ async def lint_verilog(code: str, style: str = "default") -> dict:
                 elif "Error" in line:
                     errors.append(line.strip())
 
+            logger.info(
+                "lint_verilog: warnings=%d errors=%d duration=%.3fs",
+                len(warnings),
+                len(errors),
+                duration,
+            )
             return {
                 "success": len(errors) == 0,
                 "style": style,

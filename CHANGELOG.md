@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-15
+
+### Added
+
+**Formal Verification (SymbiYosys)**
+- `superrtl verify` CLI command for BMC model checking
+- MCP tool `formal_verify` for AI-driven formal verification
+- New skill: `verilog_formal.md` with property assertion patterns
+- Supports assert/assume/cover properties
+- Configurable BMC depth and timeout
+
+**Code Review Tool**
+- `superrtl review` CLI command for static code analysis
+- MCP tool `review_verilog` for AI-driven code review
+- Checks: synthesizability, latch inference, naming, reset, case statements
+- Structured issue reports with severity levels
+
+**Testbench Enhancement**
+- Boundary value testing in comprehensive mode (min, 1, max-1, max for each port)
+- Random test checks (X-propagation detection)
+- Walking pattern generation for bus signals
+
+**CI Enhancement**
+- EDA tools installed on Ubuntu CI (iverilog, yosys, verilator)
+- Shared test fixtures in `conftest.py`
+- Custom pytest markers for integration tests
+- `pytest-timeout` dependency (60s default)
+- pip dependency caching in CI
+
+**Error Handling**
+- Unified error return structure across all tools
+- `stage` field on all multi-stage tool errors
+- Error summary strings alongside detailed error lists
+- Logging in dependency analysis for silent failures
+
+### Changed
+- `sby` (SymbiYosys) now shown in `superrtl check-tools`
+- Test count: 159 tests (was 139), all passing
+- Tools now use structured logging via `logging` module
+
+### Fixed
+- `waveform.py` missing `encoding="utf-8"` on file open
+- Duplicated VCD parsing logic (refactored to shared `parse_vcd()`)
+- Unused `get_skill_raw` export removed
+- Misleading `--port` parameter removed from `mcp` command
+- `INTRODUCTION.md` incorrect GitHub URL
+- `CHANGELOG.md` missing 0.3.1 comparison link
+
 ## [0.3.1] - 2026-06-14
 
 ### Added
@@ -119,6 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VCD waveform analysis
 - Skills and templates resources
 
+[0.4.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/RTL-Agent/SuperRTL/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/RTL-Agent/SuperRTL/releases/tag/v0.1.0
