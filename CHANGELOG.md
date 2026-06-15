@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-15
+
+### Added
+
+**Verify Workflow**
+- `superrtl verify` CLI command: one-click compile + simulate + lint + review
+- MCP tool `verify_design` for comprehensive validation
+- Skip individual steps with `--skip compile/simulate/lint/review`
+
+**Parallel Simulation**
+- MCP tool `simulate_parallel`: run multiple testbenches concurrently
+- Configurable max concurrency (default 4)
+
+**Protocol Decode**
+- SPI decoder (CPOL/CPHA support, MOSI/MISO extraction)
+- I2C decoder (address/data byte extraction, start/stop detection)
+- UART decoder (TX/RX frame extraction)
+- Integrated into `analyze_waveform` via `protocol` parameter
+
+**Coverage**
+- Toggle coverage computation from VCD data
+- Per-signal toggle status and coverage percentage
+
+**AXI-Lite IP**
+- `shared/templates/axi_lite_slave.v`: parameterized register interface
+- `shared/skills/verilog_axi_lite_slave.md`: design guide
+
+### Changed
+- All tools support `file` parameter for file path input
+- POSIX path normalization (`/d/...` → `D:\...` on Windows)
+- Error messages localized to Chinese
+- TEMP dir explicitly set to system temp (fixes .hermes-tmp issues)
+- CLI formal verification renamed to `superrtl formal`
+- MCP tools: 10 total (was 8)
+
 ## [0.4.0] - 2026-06-15
 
 ### Added
@@ -167,6 +202,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VCD waveform analysis
 - Skills and templates resources
 
+[0.5.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/RTL-Agent/SuperRTL/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/RTL-Agent/SuperRTL/compare/v0.2.0...v0.3.0
