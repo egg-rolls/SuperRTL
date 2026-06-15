@@ -8,18 +8,19 @@ import tempfile
 import time
 from pathlib import Path
 
-from ..utils import extract_top_module, run_command
+from ..utils import extract_top_module, normalize_path, run_command
 from ..validation import ValidationError, validate_code, validate_timeout, validate_top_module
 
 logger = logging.getLogger("superrtl.formal")
 
 
 async def formal_verify(
-    code: str,
+    code: str = None,
     top_module: str = "",
     properties: list[str] = None,
     timeout: int = 300,
     depth: int = 20,
+    file: str = None,
 ) -> dict:
     """
     使用 SymbiYosys 进行形式验证
@@ -30,6 +31,7 @@ async def formal_verify(
         properties: 要验证的属性名列表 (可选，验证全部)
         timeout: 验证超时时间 (秒)
         depth: BMC 搜索深度
+        file: Verilog 文件路径（优先于 code）
 
     Returns:
         验证结果字典
@@ -38,6 +40,16 @@ async def formal_verify(
     logger.debug("formal_verify: top_module=%s depth=%d timeout=%d", top_module, depth, timeout)
 
     try:
+        # 优先从文件读取
+        if file:
+            p = Path(normalize_path(file))
+            if not p.exists():
+                return {"success": False, "error": f"文件不存在: {file}"}
+            code = p.read_text(encoding="utf-8")
+
+        if not code:
+            return {"success": False, "error": "需要提供代码 (code 或 file 参数)"}
+
         # 输入验证
         validate_code(code, "code")
         timeout = validate_timeout(timeout, "formal")

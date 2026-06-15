@@ -23,7 +23,7 @@ class TestListTools:
         """测试返回所有工具"""
         tools = await list_tools()
 
-        assert len(tools) == 8
+        assert len(tools) == 10
         tool_names = [t.name for t in tools]
         assert "compile_verilog" in tool_names
         assert "simulate_verilog" in tool_names
@@ -33,6 +33,8 @@ class TestListTools:
         assert "analyze_waveform" in tool_names
         assert "formal_verify" in tool_names
         assert "review_verilog" in tool_names
+        assert "verify_design" in tool_names
+        assert "simulate_parallel" in tool_names
 
     @pytest.mark.asyncio
     async def test_tool_schemas(self):

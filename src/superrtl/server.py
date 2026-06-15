@@ -19,8 +19,10 @@ from .tools import (
     generate_testbench,
     lint_verilog,
     review_verilog,
+    simulate_parallel,
     simulate_verilog,
     synthesize_verilog,
+    verify_design,
 )
 
 # 创建 MCP Server 实例
@@ -127,7 +129,7 @@ TOOLS = [
     ),
     types.Tool(
         name="analyze_waveform",
-        description="分析 VCD 波形文件",
+        description="分析 VCD 波形文件（支持协议解码和覆盖率计算）",
         inputSchema={
             "type": "object",
             "properties": {
@@ -137,6 +139,20 @@ TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "要分析的信号列表",
+                },
+                "compute_coverage": {
+                    "type": "boolean",
+                    "description": "是否计算翻转覆盖率",
+                    "default": False,
+                },
+                "protocol": {
+                    "type": "string",
+                    "enum": ["spi", "i2c", "uart"],
+                    "description": "协议解码类型",
+                },
+                "protocol_config": {
+                    "type": "object",
+                    "description": "协议配置参数 (如 cpol/cpha/bits/baud 等)",
                 },
             },
         },
@@ -151,6 +167,10 @@ TOOLS = [
                     "type": "string",
                     "description": "Verilog 源代码（需包含 assert/assume/cover）",
                 },
+                "file": {
+                    "type": "string",
+                    "description": "Verilog 文件路径（优先于 code）",
+                },
                 "top_module": {"type": "string", "description": "顶层模块名", "default": ""},
                 "depth": {
                     "type": "integer",
@@ -163,7 +183,6 @@ TOOLS = [
                     "default": 300,
                 },
             },
-            "required": ["code"],
         },
     ),
     types.Tool(
@@ -190,6 +209,73 @@ TOOLS = [
                 },
             },
             "required": ["code"],
+        },
+    ),
+    types.Tool(
+        name="verify_design",
+        description="综合验证：一键运行 compile + simulate + lint + review",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "design_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "设计文件路径列表",
+                },
+                "testbench_file": {
+                    "type": "string",
+                    "description": "测试平台文件路径",
+                },
+                "testbench": {
+                    "type": "string",
+                    "description": "测试平台代码字符串",
+                },
+                "top_module": {"type": "string", "description": "顶层模块名", "default": ""},
+                "timeout": {
+                    "type": "integer",
+                    "description": "仿真超时 (秒)",
+                    "default": 60,
+                },
+                "skip": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["compile", "simulate", "lint", "review"],
+                    },
+                    "description": "要跳过的步骤",
+                },
+            },
+            "required": ["design_files"],
+        },
+    ),
+    types.Tool(
+        name="simulate_parallel",
+        description="并行仿真：多个 testbench 同时运行，加速回归测试",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "design_file_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "设计文件路径列表",
+                },
+                "testbench_files": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "测试平台文件路径列表",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "每个仿真的超时 (秒)",
+                    "default": 30,
+                },
+                "max_concurrent": {
+                    "type": "integer",
+                    "description": "最大并发数",
+                    "default": 4,
+                },
+            },
+            "required": ["design_file_paths", "testbench_files"],
         },
     ),
 ]
@@ -244,20 +330,42 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             )
         elif name == "analyze_waveform":
             result = await analyze_waveform(
-                arguments.get("vcd_file"), arguments.get("vcd_content"), arguments.get("signals")
+                arguments.get("vcd_file"),
+                arguments.get("vcd_content"),
+                arguments.get("signals"),
+                compute_coverage=arguments.get("compute_coverage", False),
+                protocol=arguments.get("protocol"),
+                protocol_config=arguments.get("protocol_config"),
             )
         elif name == "formal_verify":
             result = await formal_verify(
-                arguments["code"],
+                code=arguments.get("code"),
                 top_module=arguments.get("top_module", ""),
                 depth=arguments.get("depth", 20),
                 timeout=arguments.get("timeout", 300),
+                file=arguments.get("file"),
             )
         elif name == "review_verilog":
             result = await review_verilog(
                 code=arguments.get("code"),
                 checks=arguments.get("checks"),
                 file=arguments.get("file"),
+            )
+        elif name == "verify_design":
+            result = await verify_design(
+                design_files=arguments.get("design_files"),
+                testbench_file=arguments.get("testbench_file"),
+                testbench=arguments.get("testbench"),
+                top_module=arguments.get("top_module", ""),
+                timeout=arguments.get("timeout", 60),
+                skip=arguments.get("skip"),
+            )
+        elif name == "simulate_parallel":
+            result = await simulate_parallel(
+                design_file_paths=arguments.get("design_file_paths"),
+                testbench_files=arguments.get("testbench_files"),
+                timeout=arguments.get("timeout", 30),
+                max_concurrent=arguments.get("max_concurrent", 4),
             )
         else:
             result = {"success": False, "error": f"未知工具: {name}"}

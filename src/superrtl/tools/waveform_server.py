@@ -69,14 +69,14 @@ class WaveformHandler(SimpleHTTPRequestHandler):
     def _serve_data(self):
         """返回 VCD 数据 JSON"""
         if self.vcd_data is None:
-            self._send_json({"success": False, "error": "No VCD data loaded"})
+            self._send_json({"success": False, "error": "未加载 VCD 数据"})
             return
         self._send_json(self.vcd_data)
 
     def _serve_signals(self):
         """返回信号列表（支持搜索）"""
         if self.vcd_data is None:
-            self._send_json({"success": False, "error": "No VCD data loaded"})
+            self._send_json({"success": False, "error": "未加载 VCD 数据"})
             return
 
         # 获取搜索参数
@@ -132,12 +132,12 @@ def start_waveform_server(
     """
     vcd_path = Path(normalize_path(vcd_file))
     if not vcd_path.exists():
-        return {"success": False, "error": f"VCD file not found: {vcd_file}"}
+        return {"success": False, "error": f"VCD 文件不存在: {vcd_file}"}
 
     try:
         content = vcd_path.read_text(encoding="utf-8")
     except Exception as e:
-        return {"success": False, "error": f"Failed to read VCD file: {e}"}
+        return {"success": False, "error": f"读取 VCD 文件失败: {e}"}
 
     # 解析 VCD 数据（带 scope 层次结构）
     vcd_data = parse_vcd(content, include_scope=True)

@@ -592,6 +592,53 @@ def review(file: str, checks: tuple, as_json: bool):
 
 
 @main.command()
+@click.argument("designs", nargs=-1, required=True)
+@click.option("--tb", default="", help="测试平台文件路径")
+@click.option("--top", "-t", default="", help="顶层模块名")
+@click.option("--timeout", default=60, help="仿真超时 (秒)")
+@click.option("--skip", multiple=True, help="跳过的步骤 (compile/simulate/lint/review)")
+@click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
+def verify(designs: tuple, tb: str, top: str, timeout: int, skip: tuple, as_json: bool):
+    """综合验证：compile + simulate + lint + review"""
+    from .tools import verify_design
+
+    resolved = _resolve_files(designs)
+    if not resolved:
+        console.print("[FAIL] [red]未找到设计文件[/red]")
+        raise SystemExit(1)
+
+    with console.status("[bold blue]综合验证中..."):
+        result = asyncio.run(
+            verify_design(
+                design_files=resolved,
+                testbench_file=tb if tb else None,
+                top_module=top,
+                timeout=timeout,
+                skip=list(skip) if skip else None,
+            )
+        )
+
+    if as_json:
+        _output_result(result, True)
+        return
+
+    if result.get("success"):
+        steps = result.get("steps", {})
+        for step, status in steps.items():
+            color = "green" if status == "PASS" else "red"
+            icon = "OK" if status == "PASS" else "FAIL"
+            console.print(f"  [{icon}] [{color}]{step}: {status}[/{color}]")
+
+        if result.get("passed"):
+            console.print(f"\n[OK] [green]全部通过[/green] ({result.get('duration')}s)")
+        else:
+            console.print(f"\n[FAIL] [red]存在失败项[/red] ({result.get('duration')}s)")
+            raise SystemExit(1)
+    else:
+        console.print(f"[FAIL] [red]{result.get('error')}[/red]")
+
+
+@main.command()
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--top", "-t", default="", help="顶层模块名")
 @click.option("--target", default="generic", type=click.Choice(["generic", "xilinx", "ice40"]))
@@ -620,13 +667,13 @@ def synthesize(file: str, top: str, target: str, as_json: bool):
             console.print(f"   {error}")
 
 
-@main.command()
+@main.command("formal")
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--top", "-t", default="", help="顶层模块名")
 @click.option("--depth", "-d", default=20, help="BMC 搜索深度")
 @click.option("--timeout", default=300, help="超时时间 (秒)")
 @click.option("--json", "-j", "as_json", is_flag=True, help="JSON 格式输出")
-def verify(file: str, top: str, depth: int, timeout: int, as_json: bool):
+def formal(file: str, top: str, depth: int, timeout: int, as_json: bool):
     """形式验证 (SymbiYosys BMC)"""
     from .tools import formal_verify
 

@@ -67,6 +67,8 @@ def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     Returns:
         subprocess.CompletedProcess 对象
     """
+    import tempfile
+
     # 导入 runtime 模块获取工具路径和环境变量
     from ..runtime import get_environ, get_tool_path
 
@@ -77,6 +79,14 @@ def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 
     # 获取包含工具路径的环境变量
     env = get_environ()
+
+    # 确保 TEMP/TMPDIR 指向系统临时目录（避免 .hermes-tmp 等非标准目录权限问题）
+    sys_tmp = tempfile.gettempdir()
+    if sys.platform == "win32":
+        env["TEMP"] = sys_tmp
+        env["TMP"] = sys_tmp
+    else:
+        env["TMPDIR"] = sys_tmp
 
     if sys.platform == "win32":
         # Windows 上使用 cmd.exe 包装以解决 DLL 依赖问题
