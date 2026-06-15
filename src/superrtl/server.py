@@ -111,11 +111,11 @@ TOOLS = [
     ),
     types.Tool(
         name="generate_testbench",
-        description="自动生成 Testbench",
+        description="生成 Testbench 骨架（参考用，建议 AI 自行编写更有意义的 testbench）",
         inputSchema={
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "Verilog 源代码"},
+                "code": {"type": "string", "description": "Verilog 源代码（用于提取端口信息）"},
                 "style": {
                     "type": "string",
                     "description": "测试风格",
@@ -430,9 +430,7 @@ async def read_resource(uri) -> str:
             template_name = uri_str.replace("templates://", "")
             return await get_template(template_name)
         else:
-            return json.dumps(
-                {"error": f"未知资源 URI: {uri_str}"}, ensure_ascii=False
-            )
+            return json.dumps({"error": f"未知资源 URI: {uri_str}"}, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 
@@ -486,7 +484,7 @@ SKILL_PROMPTS = {
         ],
     },
     "generate-testbench": {
-        "description": "Testbench 生成助手 - 自动生成测试平台",
+        "description": "Testbench 编写助手 - 提供端口信息和测试建议，AI 自行编写 testbench",
         "arguments": [
             {"name": "code", "description": "设计代码", "required": True},
             {"name": "style", "description": "测试风格 (basic, comprehensive)", "required": False},
@@ -630,21 +628,25 @@ FIFO 类型: {arguments.get("type", "sync")}
 7. 潜在的 Bug"""
 
         elif name == "generate-testbench":
-            prompt_text = f"""你是一个 Verilog Testbench 生成专家。
+            prompt_text = f"""你是一个 Verilog 验证专家。请为以下设计编写有意义的 Testbench。
 
-请为以下代码生成 Testbench:
+设计代码:
 ```
 {arguments.get("code", "")}
 ```
 
 测试风格: {arguments.get("style", "basic")}
 
-请生成：
-1. 时钟和复位生成
-2. 测试激励
-3. 自检查逻辑
-4. 波形输出配置
-5. 超时保护"""
+要求：
+1. 分析设计的功能语义（不只是端口列表）
+2. 编写有意义的测试场景（不是随机值）
+3. 包含自检查断言（assert 或 $display PASS/FAIL）
+4. 覆盖正常路径和边界情况
+5. 时钟/复位/波形输出/超时保护
+
+写完后，将 testbench 保存为文件，然后调用:
+simulate_verilog(design_file_paths=[...], testbench_file=...)
+运行验证。"""
 
         else:
             prompt_text = f"未知 Prompt: {name}"
