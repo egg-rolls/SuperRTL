@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题
+    url: https://github.com/egg-rolls/SuperRTL/discussions
+    about: 使用中的问题请在 Discussions 中提问
+  - name: 安全漏洞
+    url: mailto:team@rtl-agent.dev
+    about: 安全漏洞请邮件报告，不要在 Issue 中公开

@@ -1,0 +1,11 @@
+# Default reviewers for all files
+* @egg-rolls
+
+# CI/CD
+.github/ @egg-rolls
+
+# Source code
+src/superrtl/ @egg-rolls
+
+# Shared resources (skills, templates)
+shared/ @egg-rolls

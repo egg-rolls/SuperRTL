@@ -33,11 +33,17 @@ git checkout -b feature/your-feature-name
 - `docs/xxx` - 文档更新
 - `refactor/xxx` - 代码重构
 
-### 5. 开发
+### 5. 开发环境
 
 ```bash
 # 安装开发依赖
 pip install -e ".[dev]"
+
+# 安装 EDA 工具（首次需要）
+superrtl setup
+
+# 启用 pre-push hook（自动代码检查）
+git config core.hooksPath .githooks
 
 # 运行测试
 pytest tests/ -v
@@ -168,6 +174,16 @@ pytest tests/ --cov=superrtl --cov-report=term-missing
 - 接受建设性批评
 - 专注于对社区最有利的事情
 - 对他人表示同理心
+
+## 添加新的 MCP Tool
+
+1. 在 `src/superrtl/tools/` 创建新模块（如 `my_tool.py`）
+2. 实现 `async def my_tool(...) -> dict` 函数，返回 `{"success": True/False, ...}`
+3. 在 `src/superrtl/tools/__init__.py` 添加导入和 `__all__`
+4. 在 `src/superrtl/server.py` 添加 `types.Tool` 定义和 `call_tool` 分支
+5. 在 `src/superrtl/cli.py` 添加 CLI 命令（可选）
+6. 在 `tests/` 添加测试
+7. 运行 `pytest tests/ -v` 确认通过
 
 ## 问题？
 
