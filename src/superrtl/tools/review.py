@@ -233,7 +233,9 @@ def _check_naming(code: str) -> list[dict]:
             name = match.group(2)
             # 排除常见的驼峰命名（如 clkDiv 在某些风格中可接受）
             # 但不排除 clkDivider、rstGenerator 等更长的名称
-            if not (name.startswith("clk") and len(name) <= 6) and not (name.startswith("rst") and len(name) <= 6):
+            short_clk = name.startswith("clk") and len(name) <= 6
+            short_rst = name.startswith("rst") and len(name) <= 6
+            if not short_clk and not short_rst:
                 issues.append(
                     {
                         "severity": "info",

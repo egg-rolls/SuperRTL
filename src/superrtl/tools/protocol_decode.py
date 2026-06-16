@@ -48,8 +48,7 @@ def _get_signal_values(signals: dict, name_pattern: str) -> list:
         name_lower = name.lower()
         pattern_lower = name_pattern.lower()
         if name_lower.startswith(pattern_lower) and (
-            len(name_lower) == len(pattern_lower) or
-            name_lower[len(pattern_lower)] in "_.["
+            len(name_lower) == len(pattern_lower) or name_lower[len(pattern_lower)] in "_.["
         ):
             return data.get("values", [])
 
@@ -217,9 +216,8 @@ def _decode_i2c(signals: dict, config: dict) -> dict:
 
         # ACK 检测 (第 9 个时钟)
         elif bit_count == 8 and scl == "1" and last_scl == "0":
-            # ACK = SDA low
-            ack = sda == "0"
-            # 可以在这里记录 ACK 状态
+            # ACK = SDA low, NACK = SDA high
+            pass  # TODO: 记录 ACK 状态到帧数据
 
         last_sda = sda
         last_scl = scl
