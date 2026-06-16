@@ -24,12 +24,39 @@ def _output_result(result: dict, as_json: bool):
 @click.group()
 @click.version_option(version=__version__, prog_name="superrtl")
 @click.option("--verbose", "-v", is_flag=True, help="显示详细日志")
-def main(verbose: bool):
+@click.pass_context
+def main(ctx, verbose: bool):
     """SuperRTL - Verilog EDA 工具的 MCP/CLI 客户端"""
     from .logging import setup_logging
 
     level = "debug" if verbose else "warning"
     setup_logging(level=level)
+
+    # 首次运行检测：如果 EDA 工具未安装，提示用户
+    ctx.ensure_object(dict)
+    if not ctx.invoked_subcommand or ctx.invoked_subcommand in (
+        "compile",
+        "simulate",
+        "verify",
+        "lint",
+        "synthesize",
+        "formal",
+        "build",
+        "test",
+        "setup",
+        "check-tools",
+        "doctor",
+        "init-mcp",
+        "mcp",
+    ):
+        return
+
+    from .runtime import tools_installed
+
+    if not tools_installed():
+        console.print("[yellow]提示: EDA 工具未安装[/yellow]")
+        console.print("  运行 [bold]superrtl setup[/bold] 自动下载安装")
+        console.print("  运行 [bold]superrtl doctor[/bold] 检查系统状态\n")
 
 
 # ============ Skills 命令组 ============
@@ -825,6 +852,134 @@ def mcp():
     # MCP 协议使用 stdin/stdout 通信，状态信息只能输出到 stderr
     print("[START] 启动 SuperRTL MCP Server", file=sys.stderr, flush=True)
     server_main()
+
+
+@main.command()
+def doctor():
+    """系统健康检查"""
+    import sys
+
+    from .runtime import get_tools_status, tools_installed
+
+    console.print(f"[bold]SuperRTL v{__version__} 系统检查[/bold]\n")
+
+    # Python 版本
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    console.print(f"  Python:     {py_ver}")
+
+    # EDA 工具
+    if tools_installed():
+        console.print("  EDA 工具:   [green]已安装[/green]")
+        status = get_tools_status()
+        for tool, info in status.items():
+            icon = "[green]+[/green]" if info["installed"] else "[red]-[/red]"
+            console.print(f"    {icon} {tool}: {info['name']}")
+    else:
+        console.print("  EDA 工具:   [red]未安装[/red]")
+        console.print("    运行 [bold]superrtl setup[/bold] 安装")
+
+    # MCP 配置检测
+    console.print("\n  MCP 配置:")
+    home = Path.home()
+    configs = {
+        "Claude Desktop": home / ".claude" / "claude_desktop_config.json",
+        "Cursor (global)": home / ".cursor" / "mcp.json",
+    }
+    for name, path in configs.items():
+        if path.exists():
+            try:
+                content = path.read_text(encoding="utf-8")
+                has_superrtl = "superrtl" in content
+                if has_superrtl:
+                    console.print(f"    [green]+[/green] {name}: 已配置 superrtl")
+                else:
+                    console.print(f"    [yellow]~[/yellow] {name}: 已配置其他 MCP，未包含 superrtl")
+            except Exception:
+                console.print(f"    [yellow]?[/yellow] {name}: 读取失败")
+        else:
+            console.print(f"    [dim]-[/dim] {name}: 未配置")
+
+    console.print("\n[bold]快速配置 MCP:[/bold]")
+    console.print("  superrtl init-mcp              # 生成配置")
+    console.print("  superrtl init-mcp --host cursor # 指定 Host")
+
+
+@main.command("init-mcp")
+@click.option(
+    "--host",
+    type=click.Choice(["claude", "cursor", "vessel", "hermes", "all"]),
+    default="all",
+    help="MCP Host 类型",
+)
+def init_mcp(host: str):
+    """生成 MCP 配置文件"""
+    import sys
+
+    # 获取 superrtl 的完整路径
+    superrtl_path = sys.executable.replace("python.exe", "superrtl.exe")
+    if not Path(superrtl_path).exists():
+        # 回退到 PATH 中的 superrtl
+        superrtl_path = "superrtl"
+
+    config = {"command": superrtl_path, "args": ["mcp"]}
+
+    hosts = {
+        "claude": {
+            "name": "Claude Desktop",
+            "path": Path.home() / ".claude" / "claude_desktop_config.json",
+            "key": "mcpServers",
+            "wrapper": True,
+        },
+        "cursor": {
+            "name": "Cursor",
+            "path": Path.cwd() / ".cursor" / "mcp.json",
+            "key": "mcpServers",
+            "wrapper": True,
+        },
+        "vessel": {
+            "name": "Vessel",
+            "path": None,
+            "key": "mcpServers",
+            "wrapper": True,
+        },
+        "hermes": {
+            "name": "Hermes Agent",
+            "path": None,
+            "key": "mcpServers",
+            "wrapper": True,
+        },
+    }
+
+    targets = hosts if host == "all" else {host: hosts[host]}
+
+    for hkey, hinfo in targets.items():
+        console.print(f"\n[bold]{hinfo['name']}[/bold]:")
+
+        if hinfo["path"]:
+            # 写入配置文件
+            hinfo["path"].parent.mkdir(parents=True, exist_ok=True)
+            if hinfo["path"].exists():
+                try:
+                    existing = json.loads(hinfo["path"].read_text(encoding="utf-8"))
+                except Exception:
+                    existing = {}
+            else:
+                existing = {}
+
+            if hinfo["key"] not in existing:
+                existing[hinfo["key"]] = {}
+            existing[hinfo["key"]]["superrtl"] = config
+            hinfo["path"].write_text(
+                json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            console.print(f"  [green]已写入[/green] {hinfo['path']}")
+        else:
+            # 只显示配置片段
+            console.print("  配置片段:")
+            snippet = json.dumps({hinfo["key"]: {"superrtl": config}}, indent=2)
+            console.print(f"  {snippet}")
+
+    console.print("\n[dim]配置完成后重启 MCP Host 即可使用[/dim]")
 
 
 if __name__ == "__main__":
