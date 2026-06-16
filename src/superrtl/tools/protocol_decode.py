@@ -34,7 +34,25 @@ def decode_protocol(signals: dict, protocol: str, config: dict = None) -> dict:
 
 
 def _get_signal_values(signals: dict, name_pattern: str) -> list:
-    """查找匹配的信号值"""
+    """查找匹配的信号值
+
+    优先精确匹配，然后前缀匹配，最后包含匹配
+    """
+    # 精确匹配
+    for name, data in signals.items():
+        if name.lower() == name_pattern.lower():
+            return data.get("values", [])
+
+    # 前缀匹配（信号名以 pattern 开头，后面是 _ 或 . 或 [）
+    for name, data in signals.items():
+        name_lower = name.lower()
+        pattern_lower = name_pattern.lower()
+        if name_lower.startswith(pattern_lower) and (
+            len(name_lower) == len(pattern_lower) or name_lower[len(pattern_lower)] in "_.["
+        ):
+            return data.get("values", [])
+
+    # 包含匹配（作为后备）
     for name, data in signals.items():
         if name_pattern.lower() in name.lower():
             return data.get("values", [])
@@ -161,8 +179,16 @@ def _decode_i2c(signals: dict, config: dict) -> dict:
         # 停止条件: SDA 上升沿 while SCL 高
         elif sda == "1" and last_sda == "0" and scl == "1":
             if in_transaction and data_bytes:
-                addr = addr_byte >> 1
-                rw = "W" if (addr_byte & 1) == 0 else "R"
+                # 根据 address_bits 解析地址
+                if address_bits == 10:
+                    # 10 位地址: 第一个字节是 11110xx0，第二个字节是 xxxxxxxx
+                    addr = ((addr_byte & 0x06) << 7) | data_bytes[0] if data_bytes else 0
+                    rw = "W" if (addr_byte & 1) == 0 else "R"
+                    data_bytes = data_bytes[1:] if len(data_bytes) > 1 else []
+                else:
+                    # 7 位地址
+                    addr = addr_byte >> 1
+                    rw = "W" if (addr_byte & 1) == 0 else "R"
                 frames.append(
                     {
                         "address": f"0x{addr:02X}",
@@ -190,8 +216,8 @@ def _decode_i2c(signals: dict, config: dict) -> dict:
 
         # ACK 检测 (第 9 个时钟)
         elif bit_count == 8 and scl == "1" and last_scl == "0":
-            # ACK = SDA low
-            pass
+            # ACK = SDA low, NACK = SDA high
+            pass  # TODO: 记录 ACK 状态到帧数据
 
         last_sda = sda
         last_scl = scl

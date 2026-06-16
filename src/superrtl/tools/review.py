@@ -194,10 +194,10 @@ def _check_latch_inference(code: str) -> list[dict]:
             # 向前查找是否有 default
             case_start = i
             has_default = False
-            depth = 0
+            depth = 1  # 第一个 case 已经匹配
             for j in range(i, min(i + 50, len(lines))):
                 case_line = lines[j].strip()
-                if "case" in case_line:
+                if "case" in case_line and j != i:
                     depth += 1
                 if "endcase" in case_line:
                     depth -= 1
@@ -232,7 +232,10 @@ def _check_naming(code: str) -> list[dict]:
         if match:
             name = match.group(2)
             # 排除常见的驼峰命名（如 clkDiv 在某些风格中可接受）
-            if not name.startswith("clk") and not name.startswith("rst"):
+            # 但不排除 clkDivider、rstGenerator 等更长的名称
+            short_clk = name.startswith("clk") and len(name) <= 6
+            short_rst = name.startswith("rst") and len(name) <= 6
+            if not short_clk and not short_rst:
                 issues.append(
                     {
                         "severity": "info",
