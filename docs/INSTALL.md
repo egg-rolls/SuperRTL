@@ -1,8 +1,6 @@
 # SuperRTL 安装指南
 
----
-
-## 一、系统要求
+## 系统要求
 
 | 项目 | 要求 |
 |------|------|
@@ -11,16 +9,13 @@
 
 ---
 
-## 二、安装 SuperRTL
-
-### 从源码安装
+## 安装
 
 ```bash
-cd SuperRTL
-pip install -e .
+pip install superrtl
 ```
 
-### 验证安装
+验证：
 
 ```bash
 superrtl --version
@@ -28,136 +23,60 @@ superrtl --version
 
 ---
 
-## 三、安装 EDA 工具
-
-### Windows (使用 Scoop)
-
-[Scoop](https://scoop.sh/) 是 Windows 下的包管理器，推荐使用。
-
-#### 1. 安装 Scoop
-
-```powershell
-# 打开 PowerShell，执行：
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-```
-
-#### 2. 添加 Bucket
-
-```powershell
-# 添加主 bucket
-scoop bucket add main
-
-# 添加 extras bucket (包含更多工具)
-scoop bucket add extras
-```
-
-#### 3. 安装 Verilog 工具
-
-```powershell
-# 安装 Icarus Verilog (编译仿真)
-scoop install main/iverilog
-
-# 安装 Yosys (综合检查)
-scoop install main/yosys
-
-# 安装 Verilator (Lint)
-scoop install main/verilator
-```
-
-#### 4. 验证安装
-
-```powershell
-# 检查版本
-iverilog -V
-yosys -V
-verilator --version
-```
-
-#### 5. 常见问题
-
-**问题：scoop 找不到包**
-
-```powershell
-# 更新 scoop
-scoop update
-
-# 搜索包
-scoop search iverilog
-scoop search yosys
-scoop search verilator
-```
-
-**问题：iverilog 安装后命令不可用**
-
-```powershell
-# 检查 PATH
-echo $env:PATH
-
-# 手动添加 PATH
-scoop prefix iverilog
-# 将输出的路径添加到 PATH
-```
-
-**问题：yosys 安装失败**
-
-```powershell
-# 尝试从 extras 安装
-scoop install extras/yosys
-
-# 或者从 GitHub 下载
-# https://github.com/YosysHQ/yosys/releases
-```
-
----
-
-### macOS (使用 Homebrew)
+## 安装 EDA 工具
 
 ```bash
-# 安装 Homebrew (如果没有)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# 安装工具
-brew install icarus-verilog
-brew install yosys
-brew install verilator
-
-# 验证
-iverilog -V
-yosys -V
-verilator --version
+superrtl setup
 ```
+
+自动下载 [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build)，包含：
+- **Icarus Verilog** — 编译仿真
+- **Yosys** — 综合检查
+- **Verilator** — Lint
+- **SymbiYosys** — 形式验证
+
+首次运行约 500MB，之后无需重复下载。
 
 ---
 
-### Linux (Ubuntu/Debian)
+## 系统检查
 
 ```bash
-# 更新包列表
-sudo apt-get update
+superrtl doctor
+```
 
-# 安装工具
-sudo apt-get install -y iverilog
-sudo apt-get install -y yosys
-sudo apt-get install -y verilator
+输出示例：
 
-# 验证
-iverilog -V
-yosys -V
-verilator --version
+```
+SuperRTL v0.5.0 系统检查
+
+  Python:     3.12.8
+  EDA 工具:   已安装
+    + iverilog: Icarus Verilog (编译仿真)
+    + vvp: Icarus Verilog (仿真器)
+    + yosys: Yosys (综合检查)
+    + verilator: Verilator (Lint)
+    + sby: SymbiYosys (形式验证)
+
+  MCP 配置:
+    + Claude Desktop: 已配置 superrtl
+    - Cursor (global): 未配置
 ```
 
 ---
 
-## 四、安装 MCP Host (可选)
+## MCP 配置
 
-### Claude Desktop
+### 自动配置
 
-1. 下载: https://claude.ai/download
-2. 配置 MCP Server:
+```bash
+superrtl init-mcp               # 所有 Host
+superrtl init-mcp --host cursor # 指定 Host
+```
 
-编辑 `~/.claude/claude_desktop_config.json`:
+### 手动配置
 
+**Claude Desktop** — `~/.claude/claude_desktop_config.json`：
 ```json
 {
   "mcpServers": {
@@ -169,13 +88,7 @@ verilator --version
 }
 ```
 
-### Cursor
-
-1. 下载: https://cursor.sh/
-2. 配置 MCP Server:
-
-创建 `.cursor/mcp.json`:
-
+**Cursor** — `.cursor/mcp.json`：
 ```json
 {
   "mcpServers": {
@@ -187,53 +100,42 @@ verilator --version
 }
 ```
 
----
-
-## 五、验证完整安装
-
-```bash
-# 1. 检查 SuperRTL
-superrtl --version
-
-# 2. 检查 EDA 工具
-superrtl check-tools
-
-# 3. 测试编译
-echo 'module test(input clk, output reg [3:0] cnt); always @(posedge clk) cnt <= cnt + 1; endmodule' > test.v
-superrtl compile test.v
-
-# 4. 启动 MCP Server
-superrtl mcp
+**Vessel / Hermes Agent**：
+```json
+{
+  "mcpServers": {
+    "superrtl": {
+      "command": "superrtl",
+      "args": ["mcp"]
+    }
+  }
+}
 ```
+
+配置完成后重启 MCP Host 即可使用。
 
 ---
 
-## 六、卸载
+## 手动安装 EDA 工具
 
-### 卸载 SuperRTL
-
-```bash
-pip uninstall superrtl
-```
-
-### 卸载 EDA 工具 (Windows Scoop)
-
-```powershell
-scoop uninstall iverilog
-scoop uninstall yosys
-scoop uninstall verilator
-```
-
-### 卸载 EDA 工具 (macOS)
+如果 `superrtl setup` 不可用，可手动安装：
 
 ```bash
-brew uninstall icarus-verilog
-brew uninstall yosys
-brew uninstall verilator
+# Ubuntu/Debian
+sudo apt-get install iverilog yosys verilator
+
+# macOS (Homebrew)
+brew install icarus-verilog yosys verilator
+
+# Windows (Scoop)
+scoop install iverilog yosys verilator
 ```
 
-### 卸载 EDA 工具 (Linux)
+---
+
+## 卸载
 
 ```bash
-sudo apt-get remove iverilog yosys verilator
+superrtl uninstall              # 卸载 EDA 工具
+pip uninstall superrtl          # 卸载 SuperRTL
 ```
