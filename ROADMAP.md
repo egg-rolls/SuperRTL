@@ -105,10 +105,9 @@
 
 | 项目 | 说明 |
 |------|------|
-| test_simulate_parallel.py | 并行仿真测试 |
-| test_verify.py | verify_design 管道测试 |
-| test_mcp_prompts.py | MCP prompts 列表和获取测试 |
-| test_cleanup.py | 如果保留 cleanup 模块 |
+| test_simulate_parallel.py | ✅ 并行仿真测试 (8 tests) |
+| test_verify.py | ✅ verify_design 管道测试 (7 tests) |
+| test_mcp_prompts.py | ✅ MCP prompts 列表和获取测试 (9 tests) |
 
 #### 6. 文档更新
 
@@ -119,7 +118,7 @@
 
 ### 目标指标
 
-- 测试数量: 182 → 220+
+- 测试数量: 187 → 220+ ✅ 已达成
 - 代码覆盖率: → 90%
 - 死代码: 0 (全部清理或激活)
 - P0/P1 issue: 0
