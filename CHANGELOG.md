@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-17
+
+### Added
+
+**Remote MCP Transport**
+- SSE transport mode: `superrtl mcp --transport sse`
+- Streamable HTTP transport mode: `superrtl mcp --transport streamable-http`
+- CLI options: `--transport`, `--host`, `--port`
+- `init-mcp` generates remote URL configuration
+
+**Protocol Decode Enhancements**
+- I2C: ACK/NACK detection, Repeated START support, state machine rewrite
+- SPI: CS-active-high mode, inter-frame gap detection, frame duration
+- UART: LSB-first bit assembly fix, value lookup logic, parity verification, frame error detection
+
+**Test Suite**
+- New test_protocol_decode.py (28 tests for SPI/I2C/UART)
+- New test_mcp_prompts.py (9 tests for MCP prompts)
+- New test_simulate_parallel.py (5 tests for parallel simulation)
+- New test_verify.py (6 tests for verify_design pipeline)
+
+### Fixed
+- GitHub URL inconsistency (unified to egg-rolls/SuperRTL)
+- Windows command injection in run_command() (use list2cmdline)
+- Protocol decoders now use time-based signal lookup (not array index)
+- `--verbose` flag now works (console handler level matches logger)
+- VCD filename uniqueness (avoids concurrent simulation conflicts)
+- I2C dead branch after ACK state
+
+### Changed
+- compile_verilog and lint_verilog now accept `timeout` parameter
+- formal_verify now accepts `solver` parameter (yices/boolector/z3)
+- Error handling: narrow exception catching with logging
+- YAML config parse errors now produce warnings
+
+### Removed
+- cleanup.py module (unused)
+- testbench.py module (dead code, replaced by MCP prompt for AI agent)
+- LogContext class (unused)
+- resolve_path function (unused)
+
 ## [0.5.0] - 2026-06-15
 
 ### Added
