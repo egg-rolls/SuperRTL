@@ -57,6 +57,10 @@ def find_config(start: Path = None) -> Path | None:
 
 def load_config(config_path: Path = None) -> dict[str, Any]:
     """加载项目配置"""
+    import logging
+
+    logger = logging.getLogger("superrtl.project")
+
     if config_path is None:
         config_path = find_config()
 
@@ -66,7 +70,11 @@ def load_config(config_path: Path = None) -> dict[str, Any]:
     try:
         with open(config_path, encoding="utf-8") as f:
             user_config = yaml.safe_load(f) or {}
-    except Exception:
+    except yaml.YAMLError as e:
+        logger.warning("配置文件 YAML 语法错误 (%s): %s，使用默认配置", config_path, e)
+        return DEFAULT_CONFIG.copy()
+    except OSError as e:
+        logger.warning("配置文件读取失败 (%s): %s，使用默认配置", config_path, e)
         return DEFAULT_CONFIG.copy()
 
     # 合并默认配置

@@ -21,6 +21,7 @@ async def formal_verify(
     timeout: int = 300,
     depth: int = 20,
     file: str = None,
+    solver: str = "yices",
 ) -> dict:
     """
     使用 SymbiYosys 进行形式验证
@@ -32,6 +33,7 @@ async def formal_verify(
         timeout: 验证超时时间 (秒)
         depth: BMC 搜索深度
         file: Verilog 文件路径（优先于 code）
+        solver: SMT solver 引擎 (yices, boolector, z3, 默认 yices)
 
     Returns:
         验证结果字典
@@ -66,7 +68,7 @@ async def formal_verify(
             design_file.write_text(code, encoding="utf-8")
 
             # 生成 SBY 配置文件
-            sby_config = _generate_sby_config(design_file, top_module, depth)
+            sby_config = _generate_sby_config(design_file, top_module, depth, solver)
             sby_file = tmpdir_path / "verify.sby"
             sby_file.write_text(sby_config, encoding="utf-8")
 
@@ -123,12 +125,17 @@ async def formal_verify(
             "error": f"形式验证超时 (>{timeout}s)",
             "suggestion": "减小 BMC 深度或优化验证属性",
         }
+    except OSError as e:
+        logger.exception("formal_verify: 系统错误")
+        return {"success": False, "error": f"系统错误: {e}"}
     except Exception as e:
         logger.exception("formal_verify: 未预期错误")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"内部错误: {type(e).__name__}: {e}"}
 
 
-def _generate_sby_config(design_file: Path, top_module: str, depth: int) -> str:
+def _generate_sby_config(
+    design_file: Path, top_module: str, depth: int, solver: str = "yices"
+) -> str:
     """生成 SymbiYosys 配置文件"""
     return f"""[tasks]
 bmc
@@ -138,7 +145,7 @@ bmc: mode bmc
 bmc: depth {depth}
 
 [engines]
-smtbmc yices
+smtbmc {solver}
 
 [script]
 read_verilog {design_file.name}

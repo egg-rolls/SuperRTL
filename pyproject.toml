@@ -42,6 +42,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+remote = [
+    "starlette>=0.27.0",
+    "uvicorn>=0.20.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -54,11 +58,11 @@ dev = [
 superrtl = "superrtl.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/RTL-Agent/SuperRTL"
-Repository = "https://github.com/RTL-Agent/SuperRTL"
-Documentation = "https://github.com/RTL-Agent/SuperRTL#readme"
-Issues = "https://github.com/RTL-Agent/SuperRTL/issues"
-Changelog = "https://github.com/RTL-Agent/SuperRTL/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/egg-rolls/SuperRTL"
+Repository = "https://github.com/egg-rolls/SuperRTL"
+Documentation = "https://github.com/egg-rolls/SuperRTL#readme"
+Issues = "https://github.com/egg-rolls/SuperRTL/issues"
+Changelog = "https://github.com/egg-rolls/SuperRTL/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 source = "vcs"

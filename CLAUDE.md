@@ -112,7 +112,7 @@ superrtl mcp                            # Start MCP Server
 
 Tests use `pytest` with `pytest-asyncio`. Async tests use `asyncio_mode = "auto"`.
 
-Current test coverage: 139 tests, ~85% coverage.
+Current test coverage: 182+ tests across 15 test files.
 
 ```bash
 # Run all tests

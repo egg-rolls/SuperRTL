@@ -7,7 +7,6 @@ from conftest import requires_iverilog
 
 from superrtl.tools.compile import compile_verilog
 from superrtl.tools.simulate import simulate_verilog
-from superrtl.tools.testbench import generate_testbench
 
 
 class TestCompileSimulateFlow:
@@ -70,33 +69,6 @@ class TestCompileSimulateFlow:
         assert sim_result["success"] is True
         assert sim_result["passed"] is True
         assert "PASS" in sim_result["output"]
-
-    @requires_iverilog
-    @pytest.mark.asyncio
-    async def test_generate_and_simulate(self):
-        """测试生成 testbench 并仿真"""
-        design = """
-        module adder (
-            input [7:0] a,
-            input [7:0] b,
-            output [8:0] sum
-        );
-            assign sum = a + b;
-        endmodule
-        """
-
-        # 步骤 1: 生成 testbench
-        tb_result = await generate_testbench(design)
-        assert tb_result["success"] is True
-        testbench = tb_result["testbench"]
-
-        # 步骤 2: 编译
-        compile_result = await compile_verilog(design)
-        assert compile_result["success"] is True
-
-        # 步骤 3: 仿真
-        sim_result = await simulate_verilog(design, testbench)
-        assert sim_result["success"] is True
 
     @requires_iverilog
     @pytest.mark.asyncio
@@ -225,117 +197,8 @@ class TestCompileSimulateFlow:
         assert result["success"] is False
 
 
-class TestTestbenchGeneration:
-    """Testbench 生成集成测试"""
-
-    @requires_iverilog
-    @pytest.mark.asyncio
-    async def test_generate_and_compile(self):
-        """测试生成 testbench 并编译"""
-        design = """
-        module counter (
-            input clk,
-            input rst_n,
-            output reg [3:0] count
-        );
-            always @(posedge clk or negedge rst_n) begin
-                if (!rst_n)
-                    count <= 4'b0;
-                else
-                    count <= count + 1'b1;
-            end
-        endmodule
-        """
-
-        # 生成 testbench
-        tb_result = await generate_testbench(design)
-        assert tb_result["success"] is True
-
-        # 编译生成的 testbench
-        compile_result = await compile_verilog(design, top_module=tb_result["top_module"])
-        assert compile_result["success"] is True
-
-    @pytest.mark.asyncio
-    async def test_complex_module_generation(self):
-        """测试复杂模块的 testbench 生成"""
-        design = """
-        module alu (
-            input [7:0] a,
-            input [7:0] b,
-            input [2:0] op,
-            output reg [7:0] result,
-            output zero
-        );
-            assign zero = (result == 0);
-
-            always @(*) begin
-                case (op)
-                    3'b000: result = a + b;
-                    3'b001: result = a - b;
-                    3'b010: result = a & b;
-                    3'b011: result = a | b;
-                    default: result = 0;
-                endcase
-            end
-        endmodule
-        """
-
-        result = await generate_testbench(design)
-
-        assert result["success"] is True
-        assert "testbench" in result
-
-        # 验证生成的 testbench 包含所有端口
-        tb = result["testbench"]
-        assert "a" in tb
-        assert "b" in tb
-        assert "op" in tb
-        assert "result" in tb
-        assert "zero" in tb
-
-
 class TestWorkflowIntegration:
     """工作流集成测试"""
-
-    @requires_iverilog
-    @pytest.mark.asyncio
-    async def test_full_workflow(self):
-        """测试完整工作流: 设计 → 生成 TB → 编译 → 仿真"""
-        # 步骤 1: 设计代码
-        design = """
-        module led_blinker (
-            input clk,
-            input rst_n,
-            output reg led
-        );
-            reg [31:0] counter;
-
-            always @(posedge clk or negedge rst_n) begin
-                if (!rst_n) begin
-                    counter <= 0;
-                    led <= 0;
-                end else begin
-                    counter <= counter + 1;
-                    if (counter == 100) begin
-                        counter <= 0;
-                        led <= ~led;
-                    end
-                end
-            end
-        endmodule
-        """
-
-        # 步骤 2: 生成 testbench
-        tb_result = await generate_testbench(design)
-        assert tb_result["success"] is True
-
-        # 步骤 3: 编译
-        compile_result = await compile_verilog(design)
-        assert compile_result["success"] is True
-
-        # 步骤 4: 仿真
-        sim_result = await simulate_verilog(design, tb_result["testbench"])
-        assert sim_result["success"] is True
 
     @requires_iverilog
     @pytest.mark.asyncio

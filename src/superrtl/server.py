@@ -44,6 +44,11 @@ TOOLS = [
                     "description": "多个设计文件代码列表（多文件模式）",
                 },
                 "top_module": {"type": "string", "description": "顶层模块名 (可选)", "default": ""},
+                "timeout": {
+                    "type": "integer",
+                    "description": "编译超时时间 (秒)",
+                    "default": 30,
+                },
             },
         },
     ),
@@ -163,6 +168,12 @@ TOOLS = [
                     "description": "验证超时时间 (秒)",
                     "default": 300,
                 },
+                "solver": {
+                    "type": "string",
+                    "description": "SMT solver 引擎",
+                    "enum": ["yices", "boolector", "z3"],
+                    "default": "yices",
+                },
             },
         },
     ),
@@ -279,7 +290,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
             files = arguments.get("files")
             code = arguments.get("code")
             result = await compile_verilog(
-                code=code, files=files, top_module=arguments.get("top_module", "")
+                code=code,
+                files=files,
+                top_module=arguments.get("top_module", ""),
+                timeout=arguments.get("timeout", 30),
             )
         elif name == "simulate_verilog":
             # 支持 code（单文件）或 design_files/design_file_paths（多文件）
@@ -296,6 +310,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 code=arguments.get("code"),
                 style=arguments.get("style", "default"),
                 file=arguments.get("file"),
+                timeout=arguments.get("timeout", 30),
             )
         elif name == "synthesize_verilog":
             result = await synthesize_verilog(
@@ -320,6 +335,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 depth=arguments.get("depth", 20),
                 timeout=arguments.get("timeout", 300),
                 file=arguments.get("file"),
+                solver=arguments.get("solver", "yices"),
             )
         elif name == "review_verilog":
             result = await review_verilog(
@@ -653,31 +669,165 @@ simulate_verilog(design_file_paths=[...], testbench_file=...)
 # ============ 启动函数 ============
 
 
-async def run_stdio():
-    """以 stdio 模式运行 (用于 MCP Host 连接)"""
+def _get_init_options():
+    """获取服务器初始化选项"""
     from . import __version__
 
+    return InitializationOptions(
+        server_name="superrtl",
+        server_version=__version__,
+        capabilities=app.get_capabilities(
+            NotificationOptions(),
+            experimental_capabilities={},
+        ),
+    )
+
+
+async def run_stdio():
+    """以 stdio 模式运行 (用于 MCP Host 连接)"""
     async with stdio_server() as (read, write):
-        await app.run(
-            read,
-            write,
-            InitializationOptions(
-                server_name="superrtl",
-                server_version=__version__,
-                capabilities=app.get_capabilities(
-                    NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
+        await app.run(read, write, _get_init_options())
+
+
+async def run_sse(host: str = "127.0.0.1", port: int = 8000):
+    """以 SSE 模式运行 (Server-Sent Events 远程传输)
+
+    端点:
+        GET  /sse  — SSE 事件流
+        POST /messages — 客户端消息
+    """
+    try:
+        import uvicorn
+        from mcp.server.sse import SseServerTransport
+        from starlette.applications import Starlette
+        from starlette.requests import Request
+        from starlette.responses import Response
+        from starlette.routing import Route
+    except ImportError:
+        raise ImportError(
+            "远程 MCP 模式需要安装额外依赖。请运行:\n"
+            "  pip install superrtl[remote]\n"
+            "或:\n"
+            "  pip install starlette uvicorn"
+        ) from None
+
+    sse_transport = SseServerTransport("/messages")
+
+    async def handle_sse(request: Request):
+        async with sse_transport.connect_sse(
+            request.scope, request.receive, request._send
+        ) as streams:
+            await app.run(streams[0], streams[1], _get_init_options())
+
+    async def handle_messages(request: Request):
+        await sse_transport.handle_post_message(
+            request.scope, request.receive, request._send
         )
 
+    async def handle_health(request: Request):
+        return Response('{"status":"ok","transport":"sse"}', media_type="application/json")
 
-def main():
-    """主入口"""
+    starlette_app = Starlette(
+        routes=[
+            Route("/health", endpoint=handle_health),
+            Route("/sse", endpoint=handle_sse),
+            Route("/messages", endpoint=handle_messages, methods=["POST"]),
+        ],
+    )
+
+    config = uvicorn.Config(starlette_app, host=host, port=port, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+async def run_streamable_http(host: str = "127.0.0.1", port: int = 8000):
+    """以 Streamable HTTP 模式运行 (推荐的远程传输方式)
+
+    端点:
+        POST /mcp — 统一的 MCP 请求端点
+    """
+    import contextlib
+    import uuid
+
+    try:
+        import uvicorn
+        from mcp.server.streamable_http import StreamableHTTPServerTransport
+        from starlette.applications import Starlette
+        from starlette.requests import Request
+        from starlette.responses import Response
+        from starlette.routing import Route
+    except ImportError:
+        raise ImportError(
+            "远程 MCP 模式需要安装额外依赖。请运行:\n"
+            "  pip install superrtl[remote]\n"
+            "或:\n"
+            "  pip install starlette uvicorn"
+        ) from None
+
+    @contextlib.asynccontextmanager
+    async def lifespan(app_ref):
+        """管理服务器生命周期"""
+        yield
+
+    async def handle_mcp(request: Request):
+        transport = StreamableHTTPServerTransport(
+            mcp_session_id=str(uuid.uuid4()),
+            is_json_response_enabled=True,
+        )
+        async with transport.connect() as streams:
+            run_task = asyncio.create_task(
+                app.run(streams[0], streams[1], _get_init_options())
+            )
+            try:
+                await transport.handle_request(
+                    request.scope, request.receive, request._send
+                )
+            finally:
+                run_task.cancel()
+                try:
+                    await run_task
+                except asyncio.CancelledError:
+                    pass
+
+    async def handle_health(request: Request):
+        return Response(
+            '{"status":"ok","transport":"streamable-http"}',
+            media_type="application/json",
+        )
+
+    starlette_app = Starlette(
+        lifespan=lifespan,
+        routes=[
+            Route("/health", endpoint=handle_health),
+            Route("/mcp", endpoint=handle_mcp, methods=["POST", "GET", "DELETE"]),
+        ],
+    )
+
+    config = uvicorn.Config(starlette_app, host=host, port=port, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+def main(transport: str = "stdio", host: str = "127.0.0.1", port: int = 8000):
+    """主入口
+
+    Args:
+        transport: 传输模式 (stdio/sse/streamable-http)
+        host: 监听地址 (仅远程模式)
+        port: 监听端口 (仅远程模式)
+    """
     from .logging import setup_logging
 
     setup_logging(level="info")
-    asyncio.run(run_stdio())
+
+    if transport == "stdio":
+        asyncio.run(run_stdio())
+    elif transport == "sse":
+        asyncio.run(run_sse(host, port))
+    elif transport == "streamable-http":
+        asyncio.run(run_streamable_http(host, port))
+    else:
+        raise ValueError(f"不支持的传输模式: {transport}")
 
 
 if __name__ == "__main__":

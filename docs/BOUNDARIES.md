@@ -136,3 +136,5 @@ Step 7: 烧录
 | 2026-06-14 | 不做 Bitstream 生成 | 依赖厂商工具链，非开源 |
 | 2026-06-14 | 专注代码生成和仿真验证 | AI 真正能省时间的地方 |
 | 2026-06-14 | 支持多文件和项目管理 | 实际项目需要模块化开发 |
+| 2026-06-17 | 删除 programmatic testbench 生成器 (testbench.py) | 基于规则的 testbench 生成效果不好，不如让 AI Agent 直接编写 |
+| 2026-06-17 | 保留 generate-testbench MCP Prompt | Testbench 由 AI Agent 生成，通过 simulate_verilog 命令验证；prompt 提供编写指导而非程序化生成 |

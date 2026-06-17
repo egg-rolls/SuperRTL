@@ -830,28 +830,59 @@ def uninstall():
 
 
 @main.command()
-def mcp():
-    """启动 MCP Server (stdio 模式)"""
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "sse", "streamable-http"]),
+    default="stdio",
+    help="传输模式: stdio (本地), sse (远程), streamable-http (远程, 推荐)",
+)
+@click.option("--host", default="127.0.0.1", help="监听地址 (仅远程模式)")
+@click.option("--port", default=8000, type=int, help="监听端口 (仅远程模式)")
+def mcp(transport: str, host: str, port: int):
+    """启动 MCP Server
+
+    支持三种传输模式:
+    \b
+    - stdio:          本地模式，通过 stdin/stdout 通信
+    - sse:            远程模式，Server-Sent Events
+    - streamable-http: 远程模式，Streamable HTTP (推荐)
+
+    示例:
+    \b
+      superrtl mcp                              # stdio 模式
+      superrtl mcp --transport sse --port 8000  # SSE 远程模式
+      superrtl mcp --transport streamable-http  # Streamable HTTP 模式
+    """
     import sys
 
     from .server import main as server_main
 
-    # 检测 stdin 是否连接到终端（非 pipe 模式）
-    if sys.stdin.isatty():
+    if transport == "stdio":
+        # stdio 模式需要 pipe，不能在终端直接运行
+        if sys.stdin.isatty():
+            print(
+                "错误: stdio 模式需要通过 MCP 客户端调用，不能在终端直接运行。\n"
+                "请在 MCP Host 中配置:\n"
+                "  命令: superrtl\n"
+                "  参数: mcp\n"
+                "  类型: stdio\n\n"
+                "或使用远程模式:\n"
+                f"  superrtl mcp --transport sse --port {port}\n"
+                f"  superrtl mcp --transport streamable-http --port {port}",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise SystemExit(1)
+        print("[START] 启动 SuperRTL MCP Server (stdio)", file=sys.stderr, flush=True)
+    else:
         print(
-            "错误: MCP Server 需要通过 MCP 客户端调用，不能在终端直接运行。\n"
-            "请在 MCP Host 中配置:\n"
-            "  命令: superrtl\n"
-            "  参数: mcp\n"
-            "  类型: stdio",
+            f"[START] 启动 SuperRTL MCP Server ({transport})",
+            f"  http://{host}:{port}",
             file=sys.stderr,
             flush=True,
         )
-        raise SystemExit(1)
 
-    # MCP 协议使用 stdin/stdout 通信，状态信息只能输出到 stderr
-    print("[START] 启动 SuperRTL MCP Server", file=sys.stderr, flush=True)
-    server_main()
+    server_main(transport=transport, host=host, port=port)
 
 
 @main.command()
@@ -907,21 +938,39 @@ def doctor():
 @main.command("init-mcp")
 @click.option(
     "--host",
+    "mcp_host",
     type=click.Choice(["claude", "cursor", "vessel", "hermes", "all"]),
     default="all",
     help="MCP Host 类型",
 )
-def init_mcp(host: str):
-    """生成 MCP 配置文件"""
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "sse", "streamable-http"]),
+    default="stdio",
+    help="传输模式",
+)
+@click.option("--port", default=8000, type=int, help="远程模式端口")
+def init_mcp(mcp_host: str, transport: str, port: int):
+    """生成 MCP 配置文件
+
+    示例:
+    \b
+      superrtl init-mcp                                  # stdio 模式
+      superrtl init-mcp --transport sse --port 8000      # SSE 远程模式
+      superrtl init-mcp --transport streamable-http      # Streamable HTTP 模式
+    """
     import sys
 
-    # 获取 superrtl 的完整路径
-    superrtl_path = sys.executable.replace("python.exe", "superrtl.exe")
-    if not Path(superrtl_path).exists():
-        # 回退到 PATH 中的 superrtl
-        superrtl_path = "superrtl"
-
-    config = {"command": superrtl_path, "args": ["mcp"]}
+    if transport == "stdio":
+        # stdio 模式: command + args
+        superrtl_path = sys.executable.replace("python.exe", "superrtl.exe")
+        if not Path(superrtl_path).exists():
+            superrtl_path = "superrtl"
+        config = {"command": superrtl_path, "args": ["mcp"]}
+    elif transport == "sse":
+        config = {"url": f"http://localhost:{port}/sse"}
+    else:
+        config = {"url": f"http://localhost:{port}/mcp"}
 
     hosts = {
         "claude": {
@@ -950,7 +999,7 @@ def init_mcp(host: str):
         },
     }
 
-    targets = hosts if host == "all" else {host: hosts[host]}
+    targets = hosts if mcp_host == "all" else {mcp_host: hosts[mcp_host]}
 
     for hkey, hinfo in targets.items():
         console.print(f"\n[bold]{hinfo['name']}[/bold]:")

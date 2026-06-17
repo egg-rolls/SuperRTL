@@ -5,7 +5,6 @@
 import re
 import subprocess
 import sys
-from pathlib import Path
 
 from .verilog import extract_ports, extract_top_module, parse_vcd
 
@@ -40,18 +39,6 @@ def normalize_path(path_str: str) -> str:
         return f"{drive}:\\{rest}"
 
     return path_str
-
-
-def resolve_path(path_str: str) -> Path:
-    """解析并归一化路径
-
-    Args:
-        path_str: 路径字符串（支持 POSIX 和 Windows 格式）
-
-    Returns:
-        解析后的 Path 对象
-    """
-    return Path(normalize_path(path_str))
 
 
 def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -90,7 +77,8 @@ def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 
     if sys.platform == "win32":
         # Windows 上使用 cmd.exe 包装以解决 DLL 依赖问题
-        cmd_str = " ".join(str(c) for c in cmd)
+        # 使用 list2cmdline 正确转义参数，防止 shell 注入
+        cmd_str = subprocess.list2cmdline(str(c) for c in cmd)
         return subprocess.run(
             ["cmd.exe", "/c", cmd_str], capture_output=True, text=True, env=env, **kwargs
         )

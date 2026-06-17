@@ -14,7 +14,9 @@ from ..validation import ValidationError, validate_code, validate_timeout
 logger = logging.getLogger("superrtl.lint")
 
 
-async def lint_verilog(code: str = None, style: str = "default", file: str = None) -> dict:
+async def lint_verilog(
+    code: str = None, style: str = "default", file: str = None, timeout: int = 30
+) -> dict:
     """
     使用 Verilator 进行 Lint 检查
 
@@ -22,6 +24,7 @@ async def lint_verilog(code: str = None, style: str = "default", file: str = Non
         code: Verilog 源代码字符串
         style: 检查风格 (default, strict, relaxed)
         file: Verilog 文件路径（优先于 code）
+        timeout: Lint 超时时间 (秒, 默认 30)
 
     Returns:
         Lint 结果字典
@@ -41,7 +44,7 @@ async def lint_verilog(code: str = None, style: str = "default", file: str = Non
         if not code:
             return {"success": False, "error": "需要提供代码 (code 或 file 参数)"}
         validate_code(code, "code")
-        validate_timeout(30, "lint")
+        validate_timeout(timeout, "lint")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # 写入代码文件
@@ -59,7 +62,7 @@ async def lint_verilog(code: str = None, style: str = "default", file: str = Non
             cmd.append(str(design_file))
 
             # 执行
-            result = run_command(cmd, timeout=30)
+            result = run_command(cmd, timeout=timeout)
 
             duration = time.perf_counter() - start_time
 
@@ -103,5 +106,9 @@ async def lint_verilog(code: str = None, style: str = "default", file: str = Non
             "error": "Lint 检查超时 (>30s)",
             "suggestion": "检查代码是否有过大的组合逻辑",
         }
+    except OSError as e:
+        logger.exception("lint_verilog: 系统错误")
+        return {"success": False, "error": f"系统错误: {e}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        logger.exception("lint_verilog: 未预期错误")
+        return {"success": False, "error": f"内部错误: {type(e).__name__}: {e}"}

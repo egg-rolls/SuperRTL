@@ -168,7 +168,11 @@ async def simulate_verilog(
             vcd_files = list(tmpdir_path.glob("*.vcd"))
             if vcd_files:
                 vcd_file = vcd_files[0]
-                persistent_vcd = Path.cwd() / "simulation.vcd"
+                # 使用唯一文件名避免并发冲突，放在临时目录而非 cwd
+                import time as _time
+
+                unique_name = f"simulation_{int(_time.time() * 1000) % 10000000}.vcd"
+                persistent_vcd = Path.cwd() / unique_name
                 shutil.copy2(str(vcd_file), str(persistent_vcd))
                 result["vcd_file"] = str(persistent_vcd)
                 result["vcd_size"] = persistent_vcd.stat().st_size
@@ -193,5 +197,9 @@ async def simulate_verilog(
             "error": f"仿真超时 (>{timeout}s)",
             "suggestion": "检查是否有无限循环，或使用 --timeout 增加超时时间",
         }
+    except OSError as e:
+        logger.exception("simulate_verilog: 系统错误")
+        return {"success": False, "error": f"系统错误: {e}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        logger.exception("simulate_verilog: 未预期错误")
+        return {"success": False, "error": f"内部错误: {type(e).__name__}: {e}"}

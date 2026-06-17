@@ -22,12 +22,12 @@ FROM base AS eda-tools
 ENV EDA_TOOLS_DIR=/opt/eda-tools
 RUN mkdir -p ${EDA_TOOLS_DIR}
 
-# 下载并安装 OSS CAD Suite
-# 使用缓存层以加速构建
+# 下载并安装 OSS CAD Suite (自动获取最新版本)
 RUN cd ${EDA_TOOLS_DIR} && \
-    wget -q --no-check-certificate \
-    https://github.com/YosysHQ/oss-cad-suite-build/releases/latest/download/oss-cad-suite-linux-x64-20260613.tgz \
-    -O oss-cad-suite.tgz && \
+    LATEST_URL=$(curl -sL https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest \
+        | grep -o '"browser_download_url": *"[^"]*linux-x64[^"]*"' \
+        | head -1 | cut -d'"' -f4) && \
+    wget -q --no-check-certificate "${LATEST_URL}" -O oss-cad-suite.tgz && \
     tar xzf oss-cad-suite.tgz && \
     rm oss-cad-suite.tgz
 

@@ -114,8 +114,12 @@ stat
             "error": "综合超时 (>120s)",
             "suggestion": "检查代码是否有过大的组合逻辑或循环依赖",
         }
+    except OSError as e:
+        logger.exception("synthesize_verilog: 系统错误")
+        return {"success": False, "error": f"系统错误: {e}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        logger.exception("synthesize_verilog: 未预期错误")
+        return {"success": False, "error": f"内部错误: {type(e).__name__}: {e}"}
 
 
 def _parse_resources(output: str) -> dict:

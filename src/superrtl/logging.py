@@ -44,9 +44,9 @@ def setup_logging(
     # 清除现有处理器
     logger.handlers.clear()
 
-    # 控制台处理器
+    # 控制台处理器 — 级别与 logger 一致
     console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setLevel(logging.WARNING)  # 控制台只显示警告及以上
+    console_handler.setLevel(LEVEL_MAP.get(level.lower(), logging.INFO))
     console_formatter = logging.Formatter("%(message)s")
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
@@ -77,22 +77,3 @@ def get_logger(name: str) -> logging.Logger:
         子 logger
     """
     return logging.getLogger(f"superrtl.{name}")
-
-
-class LogContext:
-    """日志上下文管理器"""
-
-    def __init__(self, logger: logging.Logger, operation: str):
-        self.logger = logger
-        self.operation = operation
-
-    def __enter__(self):
-        self.logger.info(f"开始: {self.operation}")
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            self.logger.error(f"失败: {self.operation} - {exc_val}")
-        else:
-            self.logger.info(f"完成: {self.operation}")
-        return False

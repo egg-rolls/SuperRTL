@@ -14,7 +14,9 @@ from ..validation import ValidationError, validate_code, validate_files_list, va
 logger = logging.getLogger("superrtl.compile")
 
 
-async def compile_verilog(code: str = None, top_module: str = "", files: list[str] = None) -> dict:
+async def compile_verilog(
+    code: str = None, top_module: str = "", files: list[str] = None, timeout: int = 30
+) -> dict:
     """
     编译 Verilog 代码
 
@@ -26,6 +28,7 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
         code: 单个设计文件代码（单文件模式）
         top_module: 顶层模块名 (可选)
         files: 多个设计文件路径列表（多文件模式）
+        timeout: 编译超时时间 (秒, 默认 30)
 
     Returns:
         编译结果字典
@@ -79,7 +82,7 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
                 cmd.extend(["-s", top_module])
             cmd.extend(source_files)
 
-            result = run_command(cmd, timeout=30)
+            result = run_command(cmd, timeout=timeout)
 
             duration = time.perf_counter() - start_time
 
@@ -122,8 +125,12 @@ async def compile_verilog(code: str = None, top_module: str = "", files: list[st
             "error": "编译超时 (>30s)",
             "suggestion": "检查代码是否有无限循环或过大的组合逻辑",
         }
+    except OSError as e:
+        logger.exception("compile_verilog: 系统错误")
+        return {"success": False, "error": f"系统错误: {e}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        logger.exception("compile_verilog: 未预期错误")
+        return {"success": False, "error": f"内部错误: {type(e).__name__}: {e}"}
 
 
 def _parse_errors(stderr: str) -> list[dict]:
